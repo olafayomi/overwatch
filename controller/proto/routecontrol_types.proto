@@ -1,0 +1,178 @@
+// Copyright (c) 2020, WAND Network Research Group
+//                     Department of Computer Science
+//                     University of Waikato
+//                     Hamilton
+//                     New Zealand
+//
+// Author Dimeji Fayomi (oof1@students.waikato.ac.nz)
+//
+// This program is free software; you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program; if not, write to the Free Software
+// Foundation, Inc., 59 Temple Place, Suite 330,
+// Boston,  MA 02111-1307  USA
+
+syntax = "proto3";
+
+import "google/protobuf/any.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+
+package routecontrol;
+
+// IP address of the eBGP speaker and
+// exaBGP instance that is mapped to it. 
+// 'local' is the IP address of the exaBGP instance.
+message IpAddress {
+  string local = 1;
+  string peer = 2;
+}
+
+// ASN number for both eBGP speaker
+// and exaBGP instance. It should be the same.
+message Asn {
+  uint32 local = 1;
+  uint32 peer  = 2;
+}
+
+// Attributes of a route
+message OriginAttribute { uint32 origin = 1; }
+
+message AsSegment {
+  uint32 type = 1;
+  repeated uint32 numbers = 2;
+}
+
+message AsPathAttribute { repeated AsSegment segments = 1; }
+
+message NextHopAttribute { string next_hop = 1; }
+
+message MultiExitDiscAttribute { uint32 med = 1; }
+
+message LocalPrefAttribute { uint32 local_pref = 1; }
+
+message AtomicAggregateAttribute {}
+
+message AggregatorAttribute {
+  uint32 as = 2;
+  string address = 3;
+}
+
+message CommunitiesAttribute { repeated uint32 communities = 1; }
+
+message OriginatorIdAttribute { string id = 1; }
+
+message ClusterListAttribute { repeated string ids = 1; }
+
+message AllAtrributes {
+  OriginAttribute originattr = 1;
+  AsPathAttribute aspathattr = 2;
+  NextHopAttribute nexthopattr = 3;
+  MultiExitDiscAttribute medattr = 4;
+  LocalPrefAttribute locprefattr = 5;
+  AggregatorAttribute aggrattr = 6;
+  CommunitiesAttribute commattr = 7;
+  OriginatorIdAttribute originatoridattr = 8;
+  ClusterListAttribute clusterlistattr = 9;
+}
+
+
+
+// BGP Address family 
+message Family {
+  enum Afi {
+    AFI_UNKNOWN = 0;
+    AFI_IP = 1;
+    AFI_IP6 = 2;
+    AFI_L2VPN = 25;
+    AFI_LS = 16388;
+    AFI_OPAQUE = 16397;
+  }
+
+  enum Safi {
+    SAFI_UNKNOWN = 0;
+    SAFI_UNICAST = 1;
+    SAFI_MULTICAST = 2;
+    SAFI_MPLS_LABEL = 4;
+    SAFI_ENCAPSULATION = 7;
+    SAFI_VPLS = 65;
+    SAFI_EVPN = 70;
+    SAFI_LS = 71;
+    SAFI_MPLS_VPN = 128;
+    SAFI_MPLS_VPN_MULTICAST = 129;
+    SAFI_ROUTE_TARGET_CONSTRAINTS = 132;
+    SAFI_FLOW_SPEC_UNICAST = 133;
+    SAFI_FLOW_SPEC_VPN = 134;
+    SAFI_KEY_VALUE = 241;
+  }
+
+  Afi afi = 1;
+  Safi safi = 2;
+}
+
+message Nexthop {
+  string address = 1;
+  bool self = 2;
+}
+
+//message Path {
+  //google.protobuf.Any nlri=1;
+  //repeated google.protobuf.Any pattrs = 2;
+//  bool is_withdraw = 3;
+//  bool no_implicit_withdraw = 4;
+//  Family family = 5;
+//  uint32 source_asn = 10;
+//  string source_id = 11;
+//  bool filtered = 12;
+//  bool stale = 13;
+//  bool is_from_external = 14;
+//  string neighbor_ip = 15;
+//  bytes uuid = 16; // only paths installed by AddPath API have this
+//  bool is_nexthop_invalid = 17;
+//  uint32 identifier = 18;
+//  uint32 local_identifier = 19;
+//  bytes nlri_binary = 20;
+//  repeated bytes pattrs_binary = 21;
+//}
+
+message Destination {
+  string nlri = 1;
+  Prefix prefix = 2;
+  Family family = 3;
+  bool is_withdraw = 4;
+}
+
+message Prefix {
+  string ip_prefix  = 1;
+  uint32 mask_length_min = 2;
+  uint32 mask_length_max = 3;
+  uint32 netmask_len = 4;
+}
+
+message Update {
+   string exabgp = 1;
+   google.protobuf.Timestamp timestamp = 2;
+   string host = 3;
+   string type = 4;
+   Asn asn = 5;
+   IpAddress ipaddr_peers = 6;
+   AllAtrributes attributes = 7;
+   Nexthop nexthop = 8;
+   repeated Destination addresses = 9;
+}
+
+message UpdateAck {
+  string ack_message = 1;
+  google.protobuf.Timestamp acktimestamp = 2;
+}
+ 
+   
