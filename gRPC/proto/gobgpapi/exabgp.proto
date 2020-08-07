@@ -1,0 +1,120 @@
+// Copyright (c) 2020, WAND Network Research Group
+//                     Department of Computer Science
+//                     University of Waikato
+//                     Hamilton
+//                     New Zealand
+//
+// This program is free software; you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program; if not, write to the Free Software
+// Foundation, Inc., 59 Temple Place, Suite 330,
+// Boston,  MA 02111-1307  USA
+//
+// @Author : Brendon Jones (Original Disaggregated Router)
+// @Author : Dimeji Fayomi
+
+syntax = "proto3";
+
+import "google/protobuf/any.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+import "gobgp.proto"; 
+import "attribute.proto";
+import "capability.proto";
+
+package gobgpapi;
+
+message ExaPeerState {
+  string auth_password = 1;
+  string description = 2;
+  uint32 local_as = 3;   
+  string neighbor_address = 5;
+  uint32 peer_as = 6;
+  string speaker_id = 7;
+  gobgpapi.Messages messages = 8;
+  enum SessionState {
+    UNKNOWN = 0;
+    IDLE = 1;
+    CONNECT = 2;
+    ACTIVE = 3;
+    OPENSENT = 4;
+    OPENCONFIRM = 5;
+    ESTABLISHED = 6;
+  }
+  SessionState session_state = 9;
+  enum AdminState {
+      UP = 0;
+      DOWN = 1;
+      PFX_CT = 2; // prefix counter over limit
+  }
+  AdminState admin_state = 10;
+}
+  
+message ExaPeerOpen {
+  uint32 local_as = 1;
+  uint32 peer_as = 2;
+  string neighbor_address = 3;
+  string speaker_id = 4;
+  gobgpapi.Messages messages = 5;
+  ExaPeerCapabilities capabilities = 6;
+  uint32 hold_time = 7;
+  uint32 bgp_version = 8;
+}
+
+message ExaPeerCapabilities {
+  gobgpapi.AddPathCapability addpathcap = 1;
+  repeated gobgpapi.MultiProtocolCapability multiprotocolcap = 2;
+  gobgpapi.RouteRefreshCapability routerefreshcap = 3;
+  gobgpapi.CarryingLabelInfoCapability carrylabelinfo = 4;
+  gobgpapi.ExtendedNexthopCapability extendednexthopcap = 5;
+  gobgpapi.GracefulRestartCapability gracefulrestartcap = 6;
+  gobgpapi.FourOctetASNumberCapability fouroctetascap = 7;
+  gobgpapi.EnhancedRouteRefreshCapability enhancedrouterefresh = 8;
+  gobgpapi.LongLivedGracefulRestartCapability longlivedgracefulrestartcap = 9;
+  gobgpapi.UnknownCapability unknowncap = 10;
+  gobgpapi.RouteRefreshCiscoCapability routerefreshciscocab = 11;
+}
+
+message ExaKeepalive {
+  uint32 local_as = 1;
+  uint32 peer_as = 2;
+  string neighbor_address = 3;
+  string speaker_id = 4;
+  gobgpapi.Messages messages = 5;
+}
+
+message ExaUpdateEoR {
+  uint32 local_as = 1;
+  uint32 peer_as = 2;
+  string neighbor_address = 3;
+  string speaker_id = 4;
+  gobgpapi.Messages messages = 5;
+  gobgpapi.Family family = 6;  
+}
+
+message ExaUpdate {
+  uint32 local_as = 1;
+  uint32 peer_as = 2;
+  string neighbor_address = 3;
+  string speaker_id = 4;
+  google.protobuf.Timestamp time = 5;
+  repeated google.protobuf.Any pattrs = 6;
+  gobgpapi.Messages messages = 7;
+  gobgpapi.NexthopAction nexthop = 8;
+  gobgpapi.Family family = 9;
+  ExaNLRI nlri = 10;
+}
+
+message ExaNLRI {
+  repeated string prefix = 1;
+}
+
+
