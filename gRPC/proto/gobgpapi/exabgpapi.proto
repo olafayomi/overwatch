@@ -30,10 +30,16 @@ import "gobgp.proto";
 import "attribute.proto";
 import "capability.proto";
 import "exabgp.proto";
-service exabgpapi {
+
+service ControllerInterface {
   rpc SendPeerState (gobgpapi.ExaPeerState) returns (google.protobuf.Empty);
   rpc SendPeerOpen (gobgpapi.ExaPeerOpen) returns (google.protobuf.Empty);
   rpc SendPeerKeepalive (gobgpapi.ExaKeepalive) returns (google.protobuf.Empty);
   rpc SendUpdateEoR (gobgpapi.ExaUpdateEoR) returns (google.protobuf.Empty);
   rpc SendUpdate (gobgpapi.ExaUpdate) returns (google.protobuf.Empty);
+  rpc GetPeerAddr (google.protobuf.Empty) returns (stream gobgpapi.GoBGPAddPeer);
+}
+
+service ExabgpInterface {
+  rpc GetCtlrMsg (google.protobuf.Empty) returns (gobgpapi.ControllerToBGP);
 }

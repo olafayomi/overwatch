@@ -26,7 +26,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto3',
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n\x0f\x65xabgpapi.proto\x1a\x19google/protobuf/any.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x0bgobgp.proto\x1a\x0f\x61ttribute.proto\x1a\x10\x63\x61pability.proto\x1a\x0c\x65xabgp.proto2\xcc\x02\n\texabgpapi\x12?\n\rSendPeerState\x12\x16.gobgpapi.ExaPeerState\x1a\x16.google.protobuf.Empty\x12=\n\x0cSendPeerOpen\x12\x15.gobgpapi.ExaPeerOpen\x1a\x16.google.protobuf.Empty\x12\x43\n\x11SendPeerKeepalive\x12\x16.gobgpapi.ExaKeepalive\x1a\x16.google.protobuf.Empty\x12?\n\rSendUpdateEoR\x12\x16.gobgpapi.ExaUpdateEoR\x1a\x16.google.protobuf.Empty\x12\x39\n\nSendUpdate\x12\x13.gobgpapi.ExaUpdate\x1a\x16.google.protobuf.Emptyb\x06proto3'
+  serialized_pb=b'\n\x0f\x65xabgpapi.proto\x1a\x19google/protobuf/any.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x0bgobgp.proto\x1a\x0f\x61ttribute.proto\x1a\x10\x63\x61pability.proto\x1a\x0c\x65xabgp.proto2\x97\x03\n\x13\x43ontrollerInterface\x12?\n\rSendPeerState\x12\x16.gobgpapi.ExaPeerState\x1a\x16.google.protobuf.Empty\x12=\n\x0cSendPeerOpen\x12\x15.gobgpapi.ExaPeerOpen\x1a\x16.google.protobuf.Empty\x12\x43\n\x11SendPeerKeepalive\x12\x16.gobgpapi.ExaKeepalive\x1a\x16.google.protobuf.Empty\x12?\n\rSendUpdateEoR\x12\x16.gobgpapi.ExaUpdateEoR\x1a\x16.google.protobuf.Empty\x12\x39\n\nSendUpdate\x12\x13.gobgpapi.ExaUpdate\x1a\x16.google.protobuf.Empty\x12?\n\x0bGetPeerAddr\x12\x16.google.protobuf.Empty\x1a\x16.gobgpapi.GoBGPAddPeer0\x01\x32R\n\x0f\x45xabgpInterface\x12?\n\nGetCtlrMsg\x12\x16.google.protobuf.Empty\x1a\x19.gobgpapi.ControllerToBGPb\x06proto3'
   ,
   dependencies=[google_dot_protobuf_dot_any__pb2.DESCRIPTOR,google_dot_protobuf_dot_timestamp__pb2.DESCRIPTOR,google_dot_protobuf_dot_empty__pb2.DESCRIPTOR,gobgp__pb2.DESCRIPTOR,attribute__pb2.DESCRIPTOR,capability__pb2.DESCRIPTOR,exabgp__pb2.DESCRIPTOR,])
 
@@ -36,19 +36,19 @@ _sym_db.RegisterFileDescriptor(DESCRIPTOR)
 
 
 
-_EXABGPAPI = _descriptor.ServiceDescriptor(
-  name='exabgpapi',
-  full_name='exabgpapi',
+_CONTROLLERINTERFACE = _descriptor.ServiceDescriptor(
+  name='ControllerInterface',
+  full_name='ControllerInterface',
   file=DESCRIPTOR,
   index=0,
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
   serialized_start=171,
-  serialized_end=503,
+  serialized_end=578,
   methods=[
   _descriptor.MethodDescriptor(
     name='SendPeerState',
-    full_name='exabgpapi.SendPeerState',
+    full_name='ControllerInterface.SendPeerState',
     index=0,
     containing_service=None,
     input_type=exabgp__pb2._EXAPEERSTATE,
@@ -58,7 +58,7 @@ _EXABGPAPI = _descriptor.ServiceDescriptor(
   ),
   _descriptor.MethodDescriptor(
     name='SendPeerOpen',
-    full_name='exabgpapi.SendPeerOpen',
+    full_name='ControllerInterface.SendPeerOpen',
     index=1,
     containing_service=None,
     input_type=exabgp__pb2._EXAPEEROPEN,
@@ -68,7 +68,7 @@ _EXABGPAPI = _descriptor.ServiceDescriptor(
   ),
   _descriptor.MethodDescriptor(
     name='SendPeerKeepalive',
-    full_name='exabgpapi.SendPeerKeepalive',
+    full_name='ControllerInterface.SendPeerKeepalive',
     index=2,
     containing_service=None,
     input_type=exabgp__pb2._EXAKEEPALIVE,
@@ -78,7 +78,7 @@ _EXABGPAPI = _descriptor.ServiceDescriptor(
   ),
   _descriptor.MethodDescriptor(
     name='SendUpdateEoR',
-    full_name='exabgpapi.SendUpdateEoR',
+    full_name='ControllerInterface.SendUpdateEoR',
     index=3,
     containing_service=None,
     input_type=exabgp__pb2._EXAUPDATEEOR,
@@ -88,7 +88,7 @@ _EXABGPAPI = _descriptor.ServiceDescriptor(
   ),
   _descriptor.MethodDescriptor(
     name='SendUpdate',
-    full_name='exabgpapi.SendUpdate',
+    full_name='ControllerInterface.SendUpdate',
     index=4,
     containing_service=None,
     input_type=exabgp__pb2._EXAUPDATE,
@@ -96,9 +96,45 @@ _EXABGPAPI = _descriptor.ServiceDescriptor(
     serialized_options=None,
     create_key=_descriptor._internal_create_key,
   ),
+  _descriptor.MethodDescriptor(
+    name='GetPeerAddr',
+    full_name='ControllerInterface.GetPeerAddr',
+    index=5,
+    containing_service=None,
+    input_type=google_dot_protobuf_dot_empty__pb2._EMPTY,
+    output_type=exabgp__pb2._GOBGPADDPEER,
+    serialized_options=None,
+    create_key=_descriptor._internal_create_key,
+  ),
 ])
-_sym_db.RegisterServiceDescriptor(_EXABGPAPI)
+_sym_db.RegisterServiceDescriptor(_CONTROLLERINTERFACE)
 
-DESCRIPTOR.services_by_name['exabgpapi'] = _EXABGPAPI
+DESCRIPTOR.services_by_name['ControllerInterface'] = _CONTROLLERINTERFACE
+
+
+_EXABGPINTERFACE = _descriptor.ServiceDescriptor(
+  name='ExabgpInterface',
+  full_name='ExabgpInterface',
+  file=DESCRIPTOR,
+  index=1,
+  serialized_options=None,
+  create_key=_descriptor._internal_create_key,
+  serialized_start=580,
+  serialized_end=662,
+  methods=[
+  _descriptor.MethodDescriptor(
+    name='GetCtlrMsg',
+    full_name='ExabgpInterface.GetCtlrMsg',
+    index=0,
+    containing_service=None,
+    input_type=google_dot_protobuf_dot_empty__pb2._EMPTY,
+    output_type=exabgp__pb2._CONTROLLERTOBGP,
+    serialized_options=None,
+    create_key=_descriptor._internal_create_key,
+  ),
+])
+_sym_db.RegisterServiceDescriptor(_EXABGPINTERFACE)
+
+DESCRIPTOR.services_by_name['ExabgpInterface'] = _EXABGPINTERFACE
 
 # @@protoc_insertion_point(module_scope)

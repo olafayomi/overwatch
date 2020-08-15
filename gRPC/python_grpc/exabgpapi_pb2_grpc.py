@@ -6,7 +6,7 @@ import exabgp_pb2 as exabgp__pb2
 from google.protobuf import empty_pb2 as google_dot_protobuf_dot_empty__pb2
 
 
-class exabgpapiStub(object):
+class ControllerInterfaceStub(object):
     """Missing associated documentation comment in .proto file."""
 
     def __init__(self, channel):
@@ -16,33 +16,38 @@ class exabgpapiStub(object):
             channel: A grpc.Channel.
         """
         self.SendPeerState = channel.unary_unary(
-                '/exabgpapi/SendPeerState',
+                '/ControllerInterface/SendPeerState',
                 request_serializer=exabgp__pb2.ExaPeerState.SerializeToString,
                 response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
                 )
         self.SendPeerOpen = channel.unary_unary(
-                '/exabgpapi/SendPeerOpen',
+                '/ControllerInterface/SendPeerOpen',
                 request_serializer=exabgp__pb2.ExaPeerOpen.SerializeToString,
                 response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
                 )
         self.SendPeerKeepalive = channel.unary_unary(
-                '/exabgpapi/SendPeerKeepalive',
+                '/ControllerInterface/SendPeerKeepalive',
                 request_serializer=exabgp__pb2.ExaKeepalive.SerializeToString,
                 response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
                 )
         self.SendUpdateEoR = channel.unary_unary(
-                '/exabgpapi/SendUpdateEoR',
+                '/ControllerInterface/SendUpdateEoR',
                 request_serializer=exabgp__pb2.ExaUpdateEoR.SerializeToString,
                 response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
                 )
         self.SendUpdate = channel.unary_unary(
-                '/exabgpapi/SendUpdate',
+                '/ControllerInterface/SendUpdate',
                 request_serializer=exabgp__pb2.ExaUpdate.SerializeToString,
                 response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
                 )
+        self.GetPeerAddr = channel.unary_stream(
+                '/ControllerInterface/GetPeerAddr',
+                request_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
+                response_deserializer=exabgp__pb2.GoBGPAddPeer.FromString,
+                )
 
 
-class exabgpapiServicer(object):
+class ControllerInterfaceServicer(object):
     """Missing associated documentation comment in .proto file."""
 
     def SendPeerState(self, request, context):
@@ -75,8 +80,14 @@ class exabgpapiServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def GetPeerAddr(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
 
-def add_exabgpapiServicer_to_server(servicer, server):
+
+def add_ControllerInterfaceServicer_to_server(servicer, server):
     rpc_method_handlers = {
             'SendPeerState': grpc.unary_unary_rpc_method_handler(
                     servicer.SendPeerState,
@@ -103,14 +114,19 @@ def add_exabgpapiServicer_to_server(servicer, server):
                     request_deserializer=exabgp__pb2.ExaUpdate.FromString,
                     response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
             ),
+            'GetPeerAddr': grpc.unary_stream_rpc_method_handler(
+                    servicer.GetPeerAddr,
+                    request_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+                    response_serializer=exabgp__pb2.GoBGPAddPeer.SerializeToString,
+            ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
-            'exabgpapi', rpc_method_handlers)
+            'ControllerInterface', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
 
 
  # This class is part of an EXPERIMENTAL API.
-class exabgpapi(object):
+class ControllerInterface(object):
     """Missing associated documentation comment in .proto file."""
 
     @staticmethod
@@ -123,7 +139,7 @@ class exabgpapi(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/exabgpapi/SendPeerState',
+        return grpc.experimental.unary_unary(request, target, '/ControllerInterface/SendPeerState',
             exabgp__pb2.ExaPeerState.SerializeToString,
             google_dot_protobuf_dot_empty__pb2.Empty.FromString,
             options, channel_credentials,
@@ -139,7 +155,7 @@ class exabgpapi(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/exabgpapi/SendPeerOpen',
+        return grpc.experimental.unary_unary(request, target, '/ControllerInterface/SendPeerOpen',
             exabgp__pb2.ExaPeerOpen.SerializeToString,
             google_dot_protobuf_dot_empty__pb2.Empty.FromString,
             options, channel_credentials,
@@ -155,7 +171,7 @@ class exabgpapi(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/exabgpapi/SendPeerKeepalive',
+        return grpc.experimental.unary_unary(request, target, '/ControllerInterface/SendPeerKeepalive',
             exabgp__pb2.ExaKeepalive.SerializeToString,
             google_dot_protobuf_dot_empty__pb2.Empty.FromString,
             options, channel_credentials,
@@ -171,7 +187,7 @@ class exabgpapi(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/exabgpapi/SendUpdateEoR',
+        return grpc.experimental.unary_unary(request, target, '/ControllerInterface/SendUpdateEoR',
             exabgp__pb2.ExaUpdateEoR.SerializeToString,
             google_dot_protobuf_dot_empty__pb2.Empty.FromString,
             options, channel_credentials,
@@ -187,8 +203,84 @@ class exabgpapi(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/exabgpapi/SendUpdate',
+        return grpc.experimental.unary_unary(request, target, '/ControllerInterface/SendUpdate',
             exabgp__pb2.ExaUpdate.SerializeToString,
             google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+            options, channel_credentials,
+            call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def GetPeerAddr(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_stream(request, target, '/ControllerInterface/GetPeerAddr',
+            google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
+            exabgp__pb2.GoBGPAddPeer.FromString,
+            options, channel_credentials,
+            call_credentials, compression, wait_for_ready, timeout, metadata)
+
+
+class ExabgpInterfaceStub(object):
+    """Missing associated documentation comment in .proto file."""
+
+    def __init__(self, channel):
+        """Constructor.
+
+        Args:
+            channel: A grpc.Channel.
+        """
+        self.GetCtlrMsg = channel.unary_unary(
+                '/ExabgpInterface/GetCtlrMsg',
+                request_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
+                response_deserializer=exabgp__pb2.ControllerToBGP.FromString,
+                )
+
+
+class ExabgpInterfaceServicer(object):
+    """Missing associated documentation comment in .proto file."""
+
+    def GetCtlrMsg(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+
+def add_ExabgpInterfaceServicer_to_server(servicer, server):
+    rpc_method_handlers = {
+            'GetCtlrMsg': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetCtlrMsg,
+                    request_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+                    response_serializer=exabgp__pb2.ControllerToBGP.SerializeToString,
+            ),
+    }
+    generic_handler = grpc.method_handlers_generic_handler(
+            'ExabgpInterface', rpc_method_handlers)
+    server.add_generic_rpc_handlers((generic_handler,))
+
+
+ # This class is part of an EXPERIMENTAL API.
+class ExabgpInterface(object):
+    """Missing associated documentation comment in .proto file."""
+
+    @staticmethod
+    def GetCtlrMsg(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/ExabgpInterface/GetCtlrMsg',
+            google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
+            exabgp__pb2.ControllerToBGP.FromString,
             options, channel_credentials,
             call_credentials, compression, wait_for_ready, timeout, metadata)

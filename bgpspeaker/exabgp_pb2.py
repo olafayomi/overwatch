@@ -25,7 +25,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto3',
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n\x0c\x65xabgp.proto\x12\x08gobgpapi\x1a\x19google/protobuf/any.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x0bgobgp.proto\x1a\x0f\x61ttribute.proto\x1a\x10\x63\x61pability.proto\"\xc1\x03\n\x0c\x45xaPeerState\x12\x15\n\rauth_password\x18\x01 \x01(\t\x12\x13\n\x0b\x64\x65scription\x18\x02 \x01(\t\x12\x10\n\x08local_as\x18\x03 \x01(\r\x12\x18\n\x10neighbor_address\x18\x05 \x01(\t\x12\x0f\n\x07peer_as\x18\x06 \x01(\r\x12\x12\n\nspeaker_id\x18\x07 \x01(\t\x12$\n\x08messages\x18\x08 \x01(\x0b\x32\x12.gobgpapi.Messages\x12:\n\rsession_state\x18\t \x01(\x0e\x32#.gobgpapi.ExaPeerState.SessionState\x12\x36\n\x0b\x61\x64min_state\x18\n \x01(\x0e\x32!.gobgpapi.ExaPeerState.AdminState\"n\n\x0cSessionState\x12\x0b\n\x07UNKNOWN\x10\x00\x12\x08\n\x04IDLE\x10\x01\x12\x0b\n\x07\x43ONNECT\x10\x02\x12\n\n\x06\x41\x43TIVE\x10\x03\x12\x0c\n\x08OPENSENT\x10\x04\x12\x0f\n\x0bOPENCONFIRM\x10\x05\x12\x0f\n\x0b\x45STABLISHED\x10\x06\"*\n\nAdminState\x12\x06\n\x02UP\x10\x00\x12\x08\n\x04\x44OWN\x10\x01\x12\n\n\x06PFX_CT\x10\x02\"\xe1\x01\n\x0b\x45xaPeerOpen\x12\x10\n\x08local_as\x18\x01 \x01(\r\x12\x0f\n\x07peer_as\x18\x02 \x01(\r\x12\x18\n\x10neighbor_address\x18\x03 \x01(\t\x12\x12\n\nspeaker_id\x18\x04 \x01(\t\x12$\n\x08messages\x18\x05 \x01(\x0b\x32\x12.gobgpapi.Messages\x12\x33\n\x0c\x63\x61pabilities\x18\x06 \x01(\x0b\x32\x1d.gobgpapi.ExaPeerCapabilities\x12\x11\n\thold_time\x18\x07 \x01(\r\x12\x13\n\x0b\x62gp_version\x18\x08 \x01(\r\"\xcf\x05\n\x13\x45xaPeerCapabilities\x12/\n\naddpathcap\x18\x01 \x01(\x0b\x32\x1b.gobgpapi.AddPathCapability\x12;\n\x10multiprotocolcap\x18\x02 \x03(\x0b\x32!.gobgpapi.MultiProtocolCapability\x12\x39\n\x0frouterefreshcap\x18\x03 \x01(\x0b\x32 .gobgpapi.RouteRefreshCapability\x12=\n\x0e\x63\x61rrylabelinfo\x18\x04 \x01(\x0b\x32%.gobgpapi.CarryingLabelInfoCapability\x12?\n\x12\x65xtendednexthopcap\x18\x05 \x01(\x0b\x32#.gobgpapi.ExtendedNexthopCapability\x12?\n\x12gracefulrestartcap\x18\x06 \x01(\x0b\x32#.gobgpapi.GracefulRestartCapability\x12=\n\x0e\x66ouroctetascap\x18\x07 \x01(\x0b\x32%.gobgpapi.FourOctetASNumberCapability\x12\x46\n\x14\x65nhancedrouterefresh\x18\x08 \x01(\x0b\x32(.gobgpapi.EnhancedRouteRefreshCapability\x12Q\n\x1blonglivedgracefulrestartcap\x18\t \x01(\x0b\x32,.gobgpapi.LongLivedGracefulRestartCapability\x12/\n\nunknowncap\x18\n \x01(\x0b\x32\x1b.gobgpapi.UnknownCapability\x12\x43\n\x14routerefreshciscocab\x18\x0b \x01(\x0b\x32%.gobgpapi.RouteRefreshCiscoCapability\"\x85\x01\n\x0c\x45xaKeepalive\x12\x10\n\x08local_as\x18\x01 \x01(\r\x12\x0f\n\x07peer_as\x18\x02 \x01(\r\x12\x18\n\x10neighbor_address\x18\x03 \x01(\t\x12\x12\n\nspeaker_id\x18\x04 \x01(\t\x12$\n\x08messages\x18\x05 \x01(\x0b\x32\x12.gobgpapi.Messages\"\xa7\x01\n\x0c\x45xaUpdateEoR\x12\x10\n\x08local_as\x18\x01 \x01(\r\x12\x0f\n\x07peer_as\x18\x02 \x01(\r\x12\x18\n\x10neighbor_address\x18\x03 \x01(\t\x12\x12\n\nspeaker_id\x18\x04 \x01(\t\x12$\n\x08messages\x18\x05 \x01(\x0b\x32\x12.gobgpapi.Messages\x12 \n\x06\x66\x61mily\x18\x06 \x01(\x0b\x32\x10.gobgpapi.Family\"\xbf\x02\n\tExaUpdate\x12\x10\n\x08local_as\x18\x01 \x01(\r\x12\x0f\n\x07peer_as\x18\x02 \x01(\r\x12\x18\n\x10neighbor_address\x18\x03 \x01(\t\x12\x12\n\nspeaker_id\x18\x04 \x01(\t\x12(\n\x04time\x18\x05 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12$\n\x06pattrs\x18\x06 \x03(\x0b\x32\x14.google.protobuf.Any\x12$\n\x08messages\x18\x07 \x01(\x0b\x32\x12.gobgpapi.Messages\x12(\n\x07nexthop\x18\x08 \x01(\x0b\x32\x17.gobgpapi.NexthopAction\x12 \n\x06\x66\x61mily\x18\t \x01(\x0b\x32\x10.gobgpapi.Family\x12\x1f\n\x04nlri\x18\n \x01(\x0b\x32\x11.gobgpapi.ExaNLRI\"\x19\n\x07\x45xaNLRI\x12\x0e\n\x06prefix\x18\x01 \x03(\tb\x06proto3'
+  serialized_pb=b'\n\x0c\x65xabgp.proto\x12\x08gobgpapi\x1a\x19google/protobuf/any.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x0bgobgp.proto\x1a\x0f\x61ttribute.proto\x1a\x10\x63\x61pability.proto\"\xc1\x03\n\x0c\x45xaPeerState\x12\x15\n\rauth_password\x18\x01 \x01(\t\x12\x13\n\x0b\x64\x65scription\x18\x02 \x01(\t\x12\x10\n\x08local_as\x18\x03 \x01(\r\x12\x18\n\x10neighbor_address\x18\x05 \x01(\t\x12\x0f\n\x07peer_as\x18\x06 \x01(\r\x12\x12\n\nspeaker_id\x18\x07 \x01(\t\x12$\n\x08messages\x18\x08 \x01(\x0b\x32\x12.gobgpapi.Messages\x12:\n\rsession_state\x18\t \x01(\x0e\x32#.gobgpapi.ExaPeerState.SessionState\x12\x36\n\x0b\x61\x64min_state\x18\n \x01(\x0e\x32!.gobgpapi.ExaPeerState.AdminState\"n\n\x0cSessionState\x12\x0b\n\x07UNKNOWN\x10\x00\x12\x08\n\x04IDLE\x10\x01\x12\x0b\n\x07\x43ONNECT\x10\x02\x12\n\n\x06\x41\x43TIVE\x10\x03\x12\x0c\n\x08OPENSENT\x10\x04\x12\x0f\n\x0bOPENCONFIRM\x10\x05\x12\x0f\n\x0b\x45STABLISHED\x10\x06\"*\n\nAdminState\x12\x06\n\x02UP\x10\x00\x12\x08\n\x04\x44OWN\x10\x01\x12\n\n\x06PFX_CT\x10\x02\"\xe1\x01\n\x0b\x45xaPeerOpen\x12\x10\n\x08local_as\x18\x01 \x01(\r\x12\x0f\n\x07peer_as\x18\x02 \x01(\r\x12\x18\n\x10neighbor_address\x18\x03 \x01(\t\x12\x12\n\nspeaker_id\x18\x04 \x01(\t\x12$\n\x08messages\x18\x05 \x01(\x0b\x32\x12.gobgpapi.Messages\x12\x33\n\x0c\x63\x61pabilities\x18\x06 \x01(\x0b\x32\x1d.gobgpapi.ExaPeerCapabilities\x12\x11\n\thold_time\x18\x07 \x01(\r\x12\x13\n\x0b\x62gp_version\x18\x08 \x01(\r\"\xcf\x05\n\x13\x45xaPeerCapabilities\x12/\n\naddpathcap\x18\x01 \x01(\x0b\x32\x1b.gobgpapi.AddPathCapability\x12;\n\x10multiprotocolcap\x18\x02 \x03(\x0b\x32!.gobgpapi.MultiProtocolCapability\x12\x39\n\x0frouterefreshcap\x18\x03 \x01(\x0b\x32 .gobgpapi.RouteRefreshCapability\x12=\n\x0e\x63\x61rrylabelinfo\x18\x04 \x01(\x0b\x32%.gobgpapi.CarryingLabelInfoCapability\x12?\n\x12\x65xtendednexthopcap\x18\x05 \x01(\x0b\x32#.gobgpapi.ExtendedNexthopCapability\x12?\n\x12gracefulrestartcap\x18\x06 \x01(\x0b\x32#.gobgpapi.GracefulRestartCapability\x12=\n\x0e\x66ouroctetascap\x18\x07 \x01(\x0b\x32%.gobgpapi.FourOctetASNumberCapability\x12\x46\n\x14\x65nhancedrouterefresh\x18\x08 \x01(\x0b\x32(.gobgpapi.EnhancedRouteRefreshCapability\x12Q\n\x1blonglivedgracefulrestartcap\x18\t \x01(\x0b\x32,.gobgpapi.LongLivedGracefulRestartCapability\x12/\n\nunknowncap\x18\n \x01(\x0b\x32\x1b.gobgpapi.UnknownCapability\x12\x43\n\x14routerefreshciscocab\x18\x0b \x01(\x0b\x32%.gobgpapi.RouteRefreshCiscoCapability\"\x85\x01\n\x0c\x45xaKeepalive\x12\x10\n\x08local_as\x18\x01 \x01(\r\x12\x0f\n\x07peer_as\x18\x02 \x01(\r\x12\x18\n\x10neighbor_address\x18\x03 \x01(\t\x12\x12\n\nspeaker_id\x18\x04 \x01(\t\x12$\n\x08messages\x18\x05 \x01(\x0b\x32\x12.gobgpapi.Messages\"\xa7\x01\n\x0c\x45xaUpdateEoR\x12\x10\n\x08local_as\x18\x01 \x01(\r\x12\x0f\n\x07peer_as\x18\x02 \x01(\r\x12\x18\n\x10neighbor_address\x18\x03 \x01(\t\x12\x12\n\nspeaker_id\x18\x04 \x01(\t\x12$\n\x08messages\x18\x05 \x01(\x0b\x32\x12.gobgpapi.Messages\x12 \n\x06\x66\x61mily\x18\x06 \x01(\x0b\x32\x10.gobgpapi.Family\"\xbf\x02\n\tExaUpdate\x12\x10\n\x08local_as\x18\x01 \x01(\r\x12\x0f\n\x07peer_as\x18\x02 \x01(\r\x12\x18\n\x10neighbor_address\x18\x03 \x01(\t\x12\x12\n\nspeaker_id\x18\x04 \x01(\t\x12(\n\x04time\x18\x05 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12$\n\x06pattrs\x18\x06 \x03(\x0b\x32\x14.google.protobuf.Any\x12$\n\x08messages\x18\x07 \x01(\x0b\x32\x12.gobgpapi.Messages\x12(\n\x07nexthop\x18\x08 \x01(\x0b\x32\x17.gobgpapi.NexthopAction\x12 \n\x06\x66\x61mily\x18\t \x01(\x0b\x32\x10.gobgpapi.Family\x12\x1f\n\x04nlri\x18\n \x01(\x0b\x32\x11.gobgpapi.ExaNLRI\"\x19\n\x07\x45xaNLRI\x12\x0e\n\x06prefix\x18\x01 \x03(\t\"\x90\x02\n\x0f\x43ontrollerToBGP\x12\x0f\n\x07peer_as\x18\x01 \x01(\r\x12\x18\n\x10neighbor_address\x18\x02 \x01(\t\x12\x36\n\x07msgtype\x18\x03 \x01(\x0e\x32%.gobgpapi.ControllerToBGP.MessageType\x12\x1f\n\x04nlri\x18\x04 \x01(\x0b\x32\x11.gobgpapi.ExaNLRI\x12$\n\x06pattrs\x18\x05 \x03(\x0b\x32\x14.google.protobuf.Any\x12(\n\x07nexthop\x18\x06 \x01(\x0b\x32\x17.gobgpapi.NexthopAction\")\n\x0bMessageType\x12\x0c\n\x08\x41NNOUNCE\x10\x00\x12\x0c\n\x08WITHDRAW\x10\x01\"X\n\x0cGoBGPAddPeer\x12\x0f\n\x07peer_as\x18\x01 \x01(\r\x12\x10\n\x08local_as\x18\x02 \x01(\r\x12\x11\n\tpeer_addr\x18\x03 \x01(\t\x12\x12\n\nspeaker_id\x18\x04 \x01(\tb\x06proto3'
   ,
   dependencies=[google_dot_protobuf_dot_any__pb2.DESCRIPTOR,google_dot_protobuf_dot_timestamp__pb2.DESCRIPTOR,google_dot_protobuf_dot_empty__pb2.DESCRIPTOR,gobgp__pb2.DESCRIPTOR,attribute__pb2.DESCRIPTOR,capability__pb2.DESCRIPTOR,])
 
@@ -110,6 +110,31 @@ _EXAPEERSTATE_ADMINSTATE = _descriptor.EnumDescriptor(
   serialized_end=613,
 )
 _sym_db.RegisterEnumDescriptor(_EXAPEERSTATE_ADMINSTATE)
+
+_CONTROLLERTOBGP_MESSAGETYPE = _descriptor.EnumDescriptor(
+  name='MessageType',
+  full_name='gobgpapi.ControllerToBGP.MessageType',
+  filename=None,
+  file=DESCRIPTOR,
+  create_key=_descriptor._internal_create_key,
+  values=[
+    _descriptor.EnumValueDescriptor(
+      name='ANNOUNCE', index=0, number=0,
+      serialized_options=None,
+      type=None,
+      create_key=_descriptor._internal_create_key),
+    _descriptor.EnumValueDescriptor(
+      name='WITHDRAW', index=1, number=1,
+      serialized_options=None,
+      type=None,
+      create_key=_descriptor._internal_create_key),
+  ],
+  containing_type=None,
+  serialized_options=None,
+  serialized_start=2452,
+  serialized_end=2493,
+)
+_sym_db.RegisterEnumDescriptor(_CONTROLLERTOBGP_MESSAGETYPE)
 
 
 _EXAPEERSTATE = _descriptor.Descriptor(
@@ -638,6 +663,127 @@ _EXANLRI = _descriptor.Descriptor(
   serialized_end=2218,
 )
 
+
+_CONTROLLERTOBGP = _descriptor.Descriptor(
+  name='ControllerToBGP',
+  full_name='gobgpapi.ControllerToBGP',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='peer_as', full_name='gobgpapi.ControllerToBGP.peer_as', index=0,
+      number=1, type=13, cpp_type=3, label=1,
+      has_default_value=False, default_value=0,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='neighbor_address', full_name='gobgpapi.ControllerToBGP.neighbor_address', index=1,
+      number=2, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='msgtype', full_name='gobgpapi.ControllerToBGP.msgtype', index=2,
+      number=3, type=14, cpp_type=8, label=1,
+      has_default_value=False, default_value=0,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='nlri', full_name='gobgpapi.ControllerToBGP.nlri', index=3,
+      number=4, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='pattrs', full_name='gobgpapi.ControllerToBGP.pattrs', index=4,
+      number=5, type=11, cpp_type=10, label=3,
+      has_default_value=False, default_value=[],
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='nexthop', full_name='gobgpapi.ControllerToBGP.nexthop', index=5,
+      number=6, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+    _CONTROLLERTOBGP_MESSAGETYPE,
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=2221,
+  serialized_end=2493,
+)
+
+
+_GOBGPADDPEER = _descriptor.Descriptor(
+  name='GoBGPAddPeer',
+  full_name='gobgpapi.GoBGPAddPeer',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='peer_as', full_name='gobgpapi.GoBGPAddPeer.peer_as', index=0,
+      number=1, type=13, cpp_type=3, label=1,
+      has_default_value=False, default_value=0,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='local_as', full_name='gobgpapi.GoBGPAddPeer.local_as', index=1,
+      number=2, type=13, cpp_type=3, label=1,
+      has_default_value=False, default_value=0,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='peer_addr', full_name='gobgpapi.GoBGPAddPeer.peer_addr', index=2,
+      number=3, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='speaker_id', full_name='gobgpapi.GoBGPAddPeer.speaker_id', index=3,
+      number=4, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=2495,
+  serialized_end=2583,
+)
+
 _EXAPEERSTATE.fields_by_name['messages'].message_type = gobgp__pb2._MESSAGES
 _EXAPEERSTATE.fields_by_name['session_state'].enum_type = _EXAPEERSTATE_SESSIONSTATE
 _EXAPEERSTATE.fields_by_name['admin_state'].enum_type = _EXAPEERSTATE_ADMINSTATE
@@ -665,6 +811,11 @@ _EXAUPDATE.fields_by_name['messages'].message_type = gobgp__pb2._MESSAGES
 _EXAUPDATE.fields_by_name['nexthop'].message_type = gobgp__pb2._NEXTHOPACTION
 _EXAUPDATE.fields_by_name['family'].message_type = gobgp__pb2._FAMILY
 _EXAUPDATE.fields_by_name['nlri'].message_type = _EXANLRI
+_CONTROLLERTOBGP.fields_by_name['msgtype'].enum_type = _CONTROLLERTOBGP_MESSAGETYPE
+_CONTROLLERTOBGP.fields_by_name['nlri'].message_type = _EXANLRI
+_CONTROLLERTOBGP.fields_by_name['pattrs'].message_type = google_dot_protobuf_dot_any__pb2._ANY
+_CONTROLLERTOBGP.fields_by_name['nexthop'].message_type = gobgp__pb2._NEXTHOPACTION
+_CONTROLLERTOBGP_MESSAGETYPE.containing_type = _CONTROLLERTOBGP
 DESCRIPTOR.message_types_by_name['ExaPeerState'] = _EXAPEERSTATE
 DESCRIPTOR.message_types_by_name['ExaPeerOpen'] = _EXAPEEROPEN
 DESCRIPTOR.message_types_by_name['ExaPeerCapabilities'] = _EXAPEERCAPABILITIES
@@ -672,6 +823,8 @@ DESCRIPTOR.message_types_by_name['ExaKeepalive'] = _EXAKEEPALIVE
 DESCRIPTOR.message_types_by_name['ExaUpdateEoR'] = _EXAUPDATEEOR
 DESCRIPTOR.message_types_by_name['ExaUpdate'] = _EXAUPDATE
 DESCRIPTOR.message_types_by_name['ExaNLRI'] = _EXANLRI
+DESCRIPTOR.message_types_by_name['ControllerToBGP'] = _CONTROLLERTOBGP
+DESCRIPTOR.message_types_by_name['GoBGPAddPeer'] = _GOBGPADDPEER
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
 
 ExaPeerState = _reflection.GeneratedProtocolMessageType('ExaPeerState', (_message.Message,), {
@@ -722,6 +875,20 @@ ExaNLRI = _reflection.GeneratedProtocolMessageType('ExaNLRI', (_message.Message,
   # @@protoc_insertion_point(class_scope:gobgpapi.ExaNLRI)
   })
 _sym_db.RegisterMessage(ExaNLRI)
+
+ControllerToBGP = _reflection.GeneratedProtocolMessageType('ControllerToBGP', (_message.Message,), {
+  'DESCRIPTOR' : _CONTROLLERTOBGP,
+  '__module__' : 'exabgp_pb2'
+  # @@protoc_insertion_point(class_scope:gobgpapi.ControllerToBGP)
+  })
+_sym_db.RegisterMessage(ControllerToBGP)
+
+GoBGPAddPeer = _reflection.GeneratedProtocolMessageType('GoBGPAddPeer', (_message.Message,), {
+  'DESCRIPTOR' : _GOBGPADDPEER,
+  '__module__' : 'exabgp_pb2'
+  # @@protoc_insertion_point(class_scope:gobgpapi.GoBGPAddPeer)
+  })
+_sym_db.RegisterMessage(GoBGPAddPeer)
 
 
 # @@protoc_insertion_point(module_scope)

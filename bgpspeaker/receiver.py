@@ -423,7 +423,7 @@ def CreateStub():
         sys.stderr.write('Error connecting to overwatch controller')
         sys.stderr.flush()
     else:
-        stub = exaBGPChannel.exabgpapiStub(channel)
+        stub = exaBGPChannel.ControllerInterfaceStub(channel)
         return stub
 
 

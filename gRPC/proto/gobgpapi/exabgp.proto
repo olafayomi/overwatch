@@ -117,4 +117,22 @@ message ExaNLRI {
   repeated string prefix = 1;
 }
 
+message ControllerToBGP {
+  uint32 peer_as = 1;
+  string neighbor_address = 2; 
+  enum MessageType {
+    ANNOUNCE = 0;
+    WITHDRAW = 1;
+  }
+  MessageType msgtype = 3;
+  ExaNLRI nlri = 4; 
+  repeated google.protobuf.Any pattrs = 5;
+  gobgpapi.NexthopAction nexthop = 6;
+}
 
+message GoBGPAddPeer {
+  uint32 peer_as = 1;
+  uint32 local_as = 2;
+  string peer_addr = 3;
+  string speaker_id = 4;
+}
