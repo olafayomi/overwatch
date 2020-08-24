@@ -37,19 +37,6 @@ metadata = [('ip', '127.0.0.1')]
 _ONE_DAY_IN_SECONDS = 60 * 60 * 24
 
 
-class ParseCtlrMsg(exaBGPChannel.ExabgpInterfaceServicer):
-
-    def SendCtlrMsg(self, request, context):
-        metadata = dict(context.invocation_metadata())
-        msg = MessageToDict(request)
-        print(msg)
-        # sys.stdout.write("Message received from controller\n")
-        # sys.stdout.write(str(metadata) + '\n')
-        # sys.stdout.write(str(msg) + '\n')
-        # sys.stdout.flush()
-        return Empty()
-
-
 def CreateExaBGPStub():
     channel = grpc.insecure_channel('localhost:50051')
     try:
@@ -79,16 +66,16 @@ def FetchMsg(stub):
             origin = 'incomplete'
 
         if message.msgtype == 0:
-            #sys.stdout.write('neighbor ' + neigh + ' peer-as ' + str(peer_as)
-            #                 + ' announce route ' + prefix + ' next-hop '
-            #                 + nexthop + ' origin ' + origin + '\n')
-            sys.stdout.write('announce route ' + prefix + ' next-hop '
+            sys.stdout.write('neighbor ' + neigh + ' announce route '
+                             + prefix + ' next-hop '
                              + nexthop + ' origin ' + origin + '\n')
+            #sys.stdout.write('announce route ' + prefix + ' next-hop '
+            #                 + nexthop + ' origin ' + origin + '\n')
             sys.stdout.flush()
         else:
-            #sys.stdout.write('neighbor ' + neigh + ' peer-as ' + str(peer_as)
-            #                 + ' withdraw route ' + prefix + '\n')
-            sys.stdout.write('withdraw route ' + prefix + '\n')
+            sys.stdout.write('neighbor ' + neigh + ' withdraw route '
+                             + prefix + '\n')
+            #sys.stdout.write('withdraw route ' + prefix + '\n')
             sys.stdout.flush()
 
 
@@ -98,20 +85,6 @@ def run():
         FetchMsg(sendStub)
         time.sleep(1)
 
-
-def serve():
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-    exaBGPChannel.add_ExabgpInterfaceServicer_to_server(ParseCtlrMsg(),
-                                                        server)
-    server.add_insecure_port('127.0.0.1:50052')
-    server.start()
-    try:
-        while True:
-            time.sleep(_ONE_DAY_IN_SECONDS)
-    except KeyboardInterrupt:
-        server.stop(0)
-
 if __name__ == '__main__':
-    # serve()
-    time.sleep(10)
+    time.sleep(45)
     run()

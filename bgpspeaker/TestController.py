@@ -91,7 +91,7 @@ class Controller(exaBGPChannel.ControllerInterfaceServicer):
         print("GoBGP Proxy request for peer details received")
         print(metadata)
         addr = 42
-        for i in range(2):
+        for i in range(1):
             peer = exabgp.GoBGPAddPeer()
             peer.peer_as = 64496
             peer.local_as = 64496
@@ -101,13 +101,12 @@ class Controller(exaBGPChannel.ControllerInterfaceServicer):
             yield peer
 
         
-
-
-
-messages = [('170.0.0.0/24', 'announce', 'self', 'external',
+messages = [('180.0.0.0/24', 'withdraw', 'self', 'external'),
+            ('170.0.0.0/24', 'announce', 'self', 'external',
              '100 200 400'),
             ('175.0.0.0/24', 'announce', 'self', 'incomplete', '100 200'),
-            ('180.0.0.0/24', 'announce', 'self', 'incomplete', '200')]
+            ('180.0.0.0/24', 'announce', 'self', 'incomplete', '200'),
+            ('179.0.0.0/24', 'announce', 'self', 'external')]
 
 
 class UpdatePeer(exaBGPChannel.ExabgpInterfaceServicer):
@@ -190,59 +189,61 @@ def CreateExaBGPStub():
         return stub
 
 
-def SendMessage():
-    messages = [('170.0.0.0/24', 'announce', 'self', 'external',
-                 '100 200 400'),
-                ('175.0.0.0/24', 'announce', 'self', 'incomplete', '100 200'),
-                ('180.0.0.0/24', 'announce', 'self', 'incomplete', '200')]
-    exaStub = CreateExaBGPStub()
-    if len(messages) != 0:
-        route = messages.pop()
-        msg = exabgp.ControllerToBGP()
-        msg.peer_as = 64496
-        msg.neighbor_address = "192.168.122.172"
-        if route[1] == "announce":
-            msg.msgtype = 0
-        else:
-            msg.msgtype = 1
-        nh = gobgp.NexthopAction()
-        nlri = exabgp.ExaNLRI()
-        pattrs = []
-
-        nlri.prefix.append(route[0])
-
-        if route[2] == "self":
-            nh.self = True
-            nh.address = '192.168.122.43'
-        else:
-            nh.self = False
-            nh.address = route[2]
-
-        if route[3] == "external":
-            originattr = attrs.OriginAttribute()
-            originattr.origin = 1
-            any_attrs = Any()
-            any_attrs.Pack(originattr)
-            msg.pattrs.append(any_attrs)
-        elif route[3] == "internal":
-            originattr = attrs.OriginAttribute()
-            originattr.origin = 0
-            any_attrs = Any()
-            any_attrs.Pack(originattr)
-            msg.pattrs.append(any_attrs)
-        else:
-            originattr = attrs.OriginAttribute()
-            originattr.origin = 2
-            any_attrs = Any()
-            any_attrs.Pack(originattr)
-            msg.pattrs.append(any_attrs)
-
-        msg.nlri.MergeFrom(nlri)
-        msg.nexthop.MergeFrom(nh)
-    else:
-        msg = exabgp.ControllerToBGP()
-    send = exaStub.SendCtlrMsg.future(msg, metadata=metadata)
-    result = send.result()
+#def SendMessage():
+#    messages = [('180.0.0.0/24', 'withdraw', 'self', 'external'),
+#                ('170.0.0.0/24', 'announce', 'self', 'external',
+#                 '100 200 400'),
+#                ('175.0.0.0/24', 'announce', 'self', 'incomplete', '100 200'),
+#                ('180.0.0.0/24', 'announce', 'self', 'incomplete', '200'),
+#                ('179.0.0.0/24', 'announce', 'self', 'external')]
+#    exaStub = CreateExaBGPStub()
+#    if len(messages) != 0:
+#        route = messages.pop()
+#        msg = exabgp.ControllerToBGP()
+#        msg.peer_as = 64496
+#        msg.neighbor_address = "192.168.122.172"
+#        if route[1] == "announce":
+#            msg.msgtype = 0
+#        else:
+#            msg.msgtype = 1
+#        nh = gobgp.NexthopAction()
+#        nlri = exabgp.ExaNLRI()
+#        pattrs = []
+#
+#        nlri.prefix.append(route[0])
+#
+#        if route[2] == "self":
+#            nh.self = True
+#            nh.address = '192.168.122.43'
+#        else:
+#            nh.self = False
+#            nh.address = route[2]
+#
+#        if route[3] == "external":
+#            originattr = attrs.OriginAttribute()
+#            originattr.origin = 1
+#            any_attrs = Any()
+#            any_attrs.Pack(originattr)
+#            msg.pattrs.append(any_attrs)
+#        elif route[3] == "internal":
+#            originattr = attrs.OriginAttribute()
+#            originattr.origin = 0
+#            any_attrs = Any()
+#            any_attrs.Pack(originattr)
+#            msg.pattrs.append(any_attrs)
+#        else:
+#            originattr = attrs.OriginAttribute()
+#            originattr.origin = 2
+#            any_attrs = Any()
+#            any_attrs.Pack(originattr)
+#            msg.pattrs.append(any_attrs)
+#
+#        msg.nlri.MergeFrom(nlri)
+#        msg.nexthop.MergeFrom(nh)
+#    else:
+#        msg = exabgp.ControllerToBGP()
+#    send = exaStub.SendCtlrMsg.future(msg, metadata=metadata)
+#    result = send.result()
 
 
 if __name__ == '__main__':

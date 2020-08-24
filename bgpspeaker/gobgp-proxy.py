@@ -37,6 +37,7 @@ from google.protobuf.empty_pb2 import Empty
 from google.protobuf.json_format import MessageToJson
 from google.protobuf.json_format import MessageToDict
 from beeprint import pp
+import time
 
 
 gobgp_metadata = [('ip', '192.168.122.172')]
@@ -98,15 +99,55 @@ def run():
         goStub.AddPeer(addPeerReq, metadata=gobgp_metadata)
         enablePeerReq = gobgp.EnablePeerRequest(address=peer.peer_addr)
         goStub.EnablePeer(enablePeerReq, metadata=gobgp_metadata)
+    time.sleep(60)
     while True:
         # Check Peer state
         for addr in peer_addresses:
-            PeerMon = goStub.MonitorPeer(gobgp.MonitorPeerRequest(
-                        address=addr,
-                        current=True), metadata=gobgp_metadata)
-            if PeerMon.state.session_state != 6:
-                print("Peer %s is down\n")
-        #
+            peers = goStub.ListPeer(gobgp.ListPeerRequest(
+                      address=addr,
+                      enableAdvertised=True), metadata=gobgp_metadata)
+            for peer in peers:
+                peer_dict = MessageToDict(peer)
+                print("Peer: %s\n" %peer_dict)
+                                                         
+            #PeerMon = goStub.MonitorPeer(gobgp.MonitorPeerRequest(
+            #            address=addr,
+            #            current=True), metadata=gobgp_metadata)
+            #for peer in PeerMon:
+            #    peerdict = MessageToDict(peer)
+            #    session_state = peerdict['peer']['state']['sessionState']
+            #    if session_state != 'ESTABLISHED':
+            #        print("Peer %s is not available\n")
+            #        print("Peer withdrawing routes\n")
+        # Get paths sent by peers
+        # Using ListPath
+        listpathreq = gobgp.ListPathRequest()
+        listpathreq.table_type = 0
+        listpathreq.family.MergeFrom(gobgp.Family(
+                                       afi=gobgp.Family.AFI_IP,
+                                       safi=gobgp.Family.SAFI_UNICAST))
+        paths = goStub.ListPath(listpathreq, metadata=gobgp_metadata)
+        for path in paths:
+            path_var = MessageToDict(path)
+            for key, value in path_var.items():
+                print("Key: %s  Value: %s\n" %(key,value))
+
+            
+
+        #monitortablereq = gobgp.MonitorTableRequest()
+        #monitortablereq.table_type = 0
+        #monitortablereq.family.MergeFrom(gobgp.Family(
+        #                                   afi=gobgp.Family.AFI_IP,
+        #                                   safi=gobgp.Family.SAFI_UNICAST))
+        #monitortablereq.current = True
+        #table = goStub.MonitorTable(monitortablereq, metadata=gobgp_metadata)
+        #for path in table:
+        #    path_var = MessageToDict(path)
+        #    print("Table paths")
+        #    for key, value in path_var.items():
+        #        print("Key: %s" % key)
+        #        print("Value: %s\n" %value)
+
 
         
 
