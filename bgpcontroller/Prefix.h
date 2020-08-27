@@ -27,7 +27,7 @@
 #include <Python.h>
 #include <stdint.h>
 #include "structmember.h"
-#include "prefixtypes.h"
+//#include "prefixtypes.h"
 
 #define     IPV4_ALL_ONES           0xffffffffU
 #define     IPV4_PREFIX_LEN_MAX     32
@@ -37,12 +37,17 @@
 #define     IPV6_PREFIX_LEN_MAX     128
 #define     IPV6_QUAD_MAX           0xFFFFu
 
+// ==================== HELPER METHODS ======================
 
-/* Convert a string number to an integer */
+
+// Convert a string number to a integer
 static int process_number(char *token);
 
+// Convert a hex string number to a integer
+static int process_hexnumber(char *token);
 
-// NOTE: Sections and functions which contain the (PYTHON) in
+
+// NOTE: Sections and functions wich contain the (PYTHON) in
 // their comments are exposed externally (can be accessed from
 // python).
 
@@ -50,16 +55,23 @@ static int process_number(char *token);
 // ========================= IPV4 ===========================
 
 
-/* ---- (PYTHON) Initialisation and cleaning functions ---- */
+typedef struct {
+    PyObject_HEAD
+    unsigned int ip;
+    unsigned char prefixlen;
+} IPv4;
+
+
+/* ---- (PYTHON) Initiation and cleaning functions ---- */
 
 
 // Allocate new object
 static PyObject *IPv4_new(PyTypeObject *type, PyObject *args, PyObject *kwds);
 
-// Initialisation method
+// Initiation method
 static int IPv4_init(IPv4 *self, PyObject *args, PyObject *kwds);
 
-// Cleanup method (free memory)
+// Cleanup method (free memeory)
 static void IPv4_dealloc(IPv4 *self);
 
 
@@ -88,10 +100,10 @@ static PyObject *IPv4_setstate(IPv4 *self, PyObject *d);
 // Compare two objects and return their ordering as an int
 static int IPv4_compare(PyObject *obj1, PyObject *obj2);
 
-// Create an IPv4 netmask as an integer from a prefixlength
-static uint32_t IPv4_calculate_netmask(uint8_t prefixlen);
+// Create a IPv4 netmask as an integer from a prefixlength
+static unsigned int IPv4_netmaskC(unsigned char prefixlen);
 
-// (PYTHON) Return a dotted quad str of an IPv4 prefix ip
+// (PYTHON) Return a dotted quad str of a IPv4 prefix ip
 static PyObject *IPv4_ip_str(IPv4 *obj);
 
 
@@ -123,10 +135,9 @@ static PyObject *IPv4_contains(IPv4 *self, PyObject *other);
 /* ---- Type Configuration ---- */
 
 
-// Member variable definition of type
+// Memeber variable definition of type
 static PyMemberDef IPv4_members[] = {
-    {"prefixlen", T_UBYTE, offsetof(IPv4, prefixlen), READONLY,
-        "ipv4 prefix length"},
+    {"prefixlen", T_UBYTE, offsetof(IPv4, prefixlen), READONLY, "ipv4 prefix length"},
     {NULL}  /* Sentinel */
 };
 
@@ -155,7 +166,7 @@ static PyMethodDef IPv4_methods[] = {
     {"__getstate__", (PyCFunction)IPv4_getstate, METH_NOARGS,
      "Retrieve the state dictionary for pickling"},
     {"__setstate__", (PyCFunction)IPv4_setstate, METH_O,
-     "Restore an object from a state dictionary for unpickling"},
+     "Restore a object from a state dictionary for unpickling"},
 
     {NULL}  /* Sentinel */
 };
@@ -206,16 +217,24 @@ static PyTypeObject IPv4Type = {
 // ========================= IPV6 ===========================
 
 
-/* ---- (PYTHON) Initialisation and cleaning functions ---- */
+typedef struct {
+    PyObject_HEAD
+    unsigned long long upper;
+    unsigned long long lower;
+    unsigned char prefixlen;
+} IPv6;
+
+
+/* ---- (PYTHON) Initiation and cleaning functions ---- */
 
 
 // Allocate new object
 static PyObject *IPv6_new(PyTypeObject *type, PyObject *args, PyObject *kwds);
 
-// Initialisation method
+// Initiation method
 static int IPv6_init(IPv6 *self, PyObject *args, PyObject *kwds);
 
-// Cleanup method (free memory allocations)
+// Cleanup method (free memeory allocations)
 static void IPv6_dealloc(IPv6 *self);
 
 
@@ -244,16 +263,16 @@ static PyObject *IPv6_setstate(IPv6 *self, PyObject *d);
 // Compare two objects and return their ordering as an int
 static int IPv6_compare(PyObject *obj1, PyObject *obj2);
 
-// Create an IPv6 upper netmask section from a prefix length
-static uint64_t IPv6_netmask_upper(uint8_t prefixlen);
+// Create a IPv6 upper netmask section from a prefix length
+static unsigned long long IPv6_netmaskUpperC(unsigned short prefixlen);
 
-// Create an IPv6 lower netmask section from a prefix length
-static uint64_t IPv6_netmask_lower(uint8_t prefixlen);
+// Create a IPv6 lower netmask section from a prefix length
+static unsigned long long IPv6_netmaskLowerC(unsigned short prefixlen);
 
-// Combine two IPv6 address sections into a python number
-static PyObject *combine_to_address(uint64_t upper, uint64_t lower);
+// Combine two IPv6 address sections into a binary string
+static char *combine_to_bin(unsigned long long upper, unsigned long long lower);
 
-// (PYTHON) Return an IPv6 ip string from a prefix
+// (PYTHON) Return a IPv6 ip string from a prefix
 static PyObject *IPv6_ip_str(IPv6 *obj);
 
 
@@ -284,13 +303,13 @@ static PyObject *IPv6_contains(IPv6* self, PyObject *other);
 
 /* ---- Type Configuration ---- */
 
-// Member variable definition of type
+// Memeber variable definition of type
 static PyMemberDef IPv6_members[] = {
     {"prefixlen", T_UBYTE, offsetof(IPv6, prefixlen), READONLY, "ipv6 prefixlen"},
     {NULL}  /* Sentinel */
 };
 
-// Method definition of type
+// Method defintion of type
 static PyMethodDef IPv6_methods[] = {
     {"ip", (PyCFunction)IPv6_ip, METH_NOARGS,
      "Return the ip address of the prefix as a number"},
@@ -315,7 +334,7 @@ static PyMethodDef IPv6_methods[] = {
     {"__getstate__", (PyCFunction)IPv6_getstate, METH_NOARGS,
      "Retrieve the state dictionary for pickling"},
     {"__setstate__", (PyCFunction)IPv6_setstate, METH_O,
-     "Restore an object from a state dictionary for unpickling"},
+     "Restore a object from a state dictionary for unpickling"},
 
     {NULL}  /* Sentinel */
 };
@@ -363,30 +382,28 @@ static PyTypeObject IPv6Type = {
 };
 
 
-/* ==================== MODULE AND FACTORY SETUP  ========================== */
+// ==================== MODULE AND FACTORY SETUP  ==========================
 
-/* Factory that will create the correct prefix type (IPv4 vs IPv6) */
+
+// Factory that initiations the correct prefix type and returns it
 static PyObject *PrefixFactory(PyObject *self, PyObject *args, PyObject *kwds);
 
-/* Define the module methods (bind the factory to the module) */
+// Define the module methods (bind the factory to the module)
 static PyMethodDef prefixmethods[] = {
-    {
-        "Prefix",
-        (PyCFunction)PrefixFactory,
-        METH_VARARGS | METH_KEYWORDS,
-        "Factory entry point (construct a prefix)"
-    },
+    {"Prefix", (PyCFunction)PrefixFactory,
+     METH_VARARGS | METH_KEYWORDS, "Factory entry point (construct a prefix)"},
     {NULL, NULL, 0, NULL}   /* Sentinel */
 };
 
-/* Define the module */
+// Define the module
 static PyModuleDef prefixmodule = {
     PyModuleDef_HEAD_INIT,
     "Prefix",
-    "IPv4/IPv6 address prefix library",
+    "Prefix module that provides several usefull functions",
     -1,
     prefixmethods
     //NULL, NULL, NULL, NULL, NULL
 };
 
 #endif /* PREFIX_H */
+

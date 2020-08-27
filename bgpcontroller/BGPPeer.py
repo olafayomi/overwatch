@@ -21,16 +21,12 @@
 # @Author : Brendon Jones (Original Disaggregated Router)
 # @Author : Dimeji Fayomi
 
-
 import logging
-import json
 
 from Peer import Peer
 from PolicyObject import ACCEPT
 from Prefix import Prefix
 from RouteEntry import RouteEntry, DEFAULT_LOCAL_PREF, ORIGIN_EGP
-import messages_pb2 as pb
-
 
 class BGPPeer(Peer):
     def __init__(self, name, asn, address, outgoing_queue, control_queue,
@@ -48,7 +44,7 @@ class BGPPeer(Peer):
 
         self.seen_eor = False
         self.actions.update({
-            pb.Message.BGP: self._process_bgp_message,
+            "bgp": self._process_bgp_message,
         })
 
         # Do not export or process anything until we know the peers
@@ -112,7 +108,7 @@ class BGPPeer(Peer):
         # TODO origin, aggregator/atomic-aggregate attributes
         # TODO use attributes/nlri announce many routes with same attributes
         #    "announce attribute next-hop self community [] nlri 1.2.3.4/32"
-        #self.log.debug("announce %s", prefix)
+        self.log.debug("announce %s", prefix)
         announce = "neighbor %s announce route %s next-hop %s %s %s" % (
                     self.address,
                     prefix, route.nexthop, route.get_announce_as_path_string(),
@@ -127,12 +123,6 @@ class BGPPeer(Peer):
         self.out_queue.put(bytes(withdraw, "utf-8"))
 
     def _process_bgp_message(self, message):
-        try:
-            message = json.loads(message.bgp.json)
-        except json.JSONDecodeError as e:
-            self.log.error("Invalid json in ExaBGP message, ignoring")
-            return None
-
         assert(message["neighbor"]["address"]["peer"] == self.address)
         assert(message["neighbor"]["asn"]["peer"] == self.asn)
 
@@ -145,11 +135,12 @@ class BGPPeer(Peer):
         elif message["type"] == "open":
             callback = self._process_open_message(message)
         elif message["type"] == "refresh":
+            self.log.error("\n\nREFRESH\n\n")
             callback = self._process_refresh_message(message)
         elif message["type"] == "negotiated":
             callback = self._process_negotiated_message(message)
         else:
-            self.log.warning("Unknown BGP message type: %s", message["type"])
+            self.log.warning("Unknown BGP message type: %s" % message["type"])
             callback = None
         return callback
 
@@ -190,14 +181,14 @@ class BGPPeer(Peer):
             withdrawn_prefix = Prefix(withdrawn)
             # a peer can remove supernets that don't explicitly exist, so we
             # need to check if a prefix is contained within the withdrawn one
-            for route in self.received:
-                if withdrawn_prefix.contains(route.prefix):
+            for prefix in self.received.keys():
+                if withdrawn_prefix.contains(Prefix(prefix)):
                     # remove any routes that fall within the prefix
-                    empty.append(route)
+                    empty.append(prefix)
 
         # remove prefixes that no longer have routes
-        for route in empty:
-            self.received.remove(route)
+        for prefix in empty:
+            del self.received[prefix]
 
         return len(prefixes) > 0
 
@@ -250,6 +241,7 @@ class BGPPeer(Peer):
         if section_name not in update:
             return False
 
+
         # Process the message for negotiated AFI/SAFI values
         section = update[section_name]
         for family in self.afi_safi:
@@ -276,42 +268,30 @@ class BGPPeer(Peer):
         return False
 
     def _process_update_message(self, message):
-        # update timing metrics to track when messages were received
-        if len(self.received) == 0:
-            self.metrics["peer_first_import_timestamp"].set_to_current_time()
-        self.metrics["peer_last_import_timestamp"].set_to_current_time()
+        update = message["neighbor"]["message"].get("update", None)
+        withdrawn = False
+        announced = False
 
-        # update metrics to track how long we took to process the message
-        with self.metrics["peer_process_bgp_update_duration"].time():
-            update = message["neighbor"]["message"].get("update", None)
-            withdrawn = False
-            announced = False
+        # Process EoR messages if there is no update
+        # XXX: This assumes that we will not get an update and eor in message
+        if update is None:
+            eor_section = message["neighbor"]["message"].get("eor", None)
+            if not eor_section is None:
+                self.seen_eor = True
+                announced = True
+                self.log.debug("%s seen eor for AFI %s and SAFI %s" % (self.name,
+                        eor_section["safi"], eor_section["afi"]))
+        else:
+            withdrawn = self._process_bgp_update_section(update, "withdraw",
+                    self._process_withdraw_prefixes)
+            announced = self._process_bgp_update_section(update, "announce",
+                    self._process_announce_prefixes)
 
-            # Process EoR messages if there is no update
-            # XXX: assumes that we will not get an update and eor in message
-            if update is None:
-                eor_section = message["neighbor"]["message"].get("eor", None)
-                if eor_section is not None:
-                    self.seen_eor = True
-                    announced = True
-                    self.log.debug("%s seen eor for AFI %s and SAFI %s",
-                            self.name, eor_section["safi"], eor_section["afi"])
-            else:
-                withdrawn = self._process_bgp_update_section(update, "withdraw",
-                        self._process_withdraw_prefixes)
-                announced = self._process_bgp_update_section(update, "announce",
-                        self._process_announce_prefixes)
-
-            # record the number of routes that we have received
-            self.metrics["peer_prefix_accepted_current"].set(len(self.received))
-
-            # if anything changed then just send all the routes we have
-            if self.seen_eor and (withdrawn or announced):
-                self.metrics["peer_prefix_received_current"].set(
-                        len(self.received))
-                # send filtered routes to the route tables
-                self.log.debug("Updating %s peer tables", self.name)
-                return self._update_tables_with_routes
+        # if anything changed then just send all the routes we have
+        if self.seen_eor and (withdrawn or announced):
+            # send filtered routes to the route tables
+            self.log.debug("Updating %s peer tables" % self.name)
+            return self._update_tables_with_routes
         return None
 
     def _process_open_message(self, message):

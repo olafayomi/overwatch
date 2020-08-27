@@ -25,14 +25,13 @@ import json
 import time
 from copy import deepcopy
 from abc import abstractmethod, ABCMeta
-from multiprocessing36 import Process, Queue
+from multiprocessing import Process, Queue
 from queue import Empty
 from ctypes import cdll, byref, create_string_buffer
 from collections import defaultdict
 from Prefix import Prefix
 from RouteEntry import RouteEntry, DEFAULT_LOCAL_PREF
 from Filter import Filter, PrefixFilterRule
-import messages_pb2 as pb
 
 ACCEPT = True
 REJECT = False
@@ -57,14 +56,9 @@ class PolicyObject(Process):
         self.mailbox = Queue()
         self.daemon = True
         self.actions = {
-            #"add_import_filter": self._process_add_import_filter_message,
-            #"get_import_filters": self._process_get_import_filters_message,
+            "add_import_filter": self._process_add_import_filter_message,
+            "get_import_filters": self._process_get_import_filters_message,
         }
-        self._gauge_metrics = []
-        self._histogram_metrics = []
-        self.metrics = {}
-        self.batchsize = 500000
-        self._add_histogram("policy_export_filter_duration")
 
     def __str__(self):
         return "PolicyObject(%s, import:%s (%d rules) / export:%s (%d rules))" \
@@ -77,52 +71,38 @@ class PolicyObject(Process):
         buff.value = ("foo " + self.name).encode()
         libc.prctl(15, byref(buff), 0, 0, 0)
 
-        # this has to happen once the process is forked, otherwise the metrics
-        # will all be created for the parent process
-        self._initialise_metrics()
-
         callbacks = []
 
         while True:
             try:
-                serialised = self.mailbox.get(block=True, timeout=0.1)
+                msgtype, message = self.mailbox.get(block=True, timeout=1)
             except Empty:
                 # if we reach the timeout then no messages have been received
                 # for a while, trigger all the callbacks
                 for callback, timeout in callbacks:
-                    self.log.debug(
-                            "%s no recent messages, callback %s triggered",
-                            self.name, callback)
+                    self.log.debug("No recent messages, callback %s triggered" %
+                            callback)
                     callback()
                 callbacks.clear()
                 continue
 
-            message = pb.Message()
-            message.ParseFromString(serialised)
-            if message.type in self.actions:
+            # if it's been too long since we added a callback, deal with it
+            # now before continuing to process messages
+            while len(callbacks) > 0 and callbacks[0][1] < time.time():
+                self.log.debug("Triggering overdue callback %s" % callback)
+                callback, timeout = callbacks.pop(0)
+                callback()
+
+            if msgtype in self.actions:
                 # actions may trigger a callback (e.g. advertising routes) but
                 # we don't want to repeatedly perform these actions, so delay
                 # briefly in case we get more messages
-                callback = self.actions[message.type](message)
+                callback = self.actions[msgtype](message)
                 if callback and not any(callback == x for x, y in callbacks):
                     callbacks.append((callback, time.time() + 10))
-                    self.log.debug("%s saving callback %s", self.name, callback)
             else:
-                self.log.warning("%s ignoring unknown message type %s",
-                        self.name, message.type)
-
-            # we don't need to hold onto this message until it gets replaced,
-            # delete it now and possibly save a large amount of space
+                self.log.warning("Ignoring unknown message type %s" % msgtype)
             del message
-
-            # if it's been too long since we added a callback, deal with it
-            # now before continuing to process other messages
-            while len(callbacks) > 0 and callbacks[0][1] < time.time():
-                callback, timeout = callbacks.pop(0)
-                self.log.debug("%s Triggering overdue callback %s", self.name,
-                        callback)
-                callback()
-
 
     def add_import_filter(self, filter_):
         # don't allow filters with the same name
@@ -153,20 +133,20 @@ class PolicyObject(Process):
     def add_aggregate_prefix(self, prefix):
         self.aggregate.append(Prefix(prefix))
 
-    def filter_export_routes(self, export_routes, copy=True):
-        with self.metrics["policy_export_filter_duration"].time():
-            filtered_routes = defaultdict(list)
-            for route in export_routes:
-                # if filter_export_route() is successful it will return a
-                # copy of the route so that filter actions etc don't
-                # clobber the original version
-                route_copy = self.filter_export_route(route, copy=copy)
-                if route_copy and route_copy not in filtered_routes[route.prefix]:
-                    filtered_routes[route.prefix].append(route_copy)
-            # perform aggregation if required
-            if len(self.aggregate) > 0:
-                filtered_routes = self._aggregate_routes(filtered_routes)
-            return filtered_routes
+    def filter_export_routes(self, export_routes):
+        filtered_routes = defaultdict(list)
+        for prefix, routes in export_routes.items():
+            for route in routes:
+                # if filter_export_route() is successful it will return a copy
+                # of the route so that filter actions etc don't clobber the
+                # original version
+                route_copy = self.filter_export_route(route, copy=True)
+                if route_copy:
+                    filtered_routes[prefix].append(route_copy)
+        # perform aggregation if required
+        if len(self.aggregate) > 0:
+            filtered_routes = self._aggregate_routes(filtered_routes)
+        return filtered_routes
 
     def filter_import_route(self, route, copy=False):
         return self._filter_route(self.import_filter, route,
@@ -283,44 +263,32 @@ class PolicyObject(Process):
     def _process_get_import_filters_message(self, message):
         self.control_queue.put([x.toJSON() for x in self.get_import_filters()])
 
-    def _add_gauge(self, name, initial_value):
-        # add the gauge to a temporary list so it can be created later on
-        self._gauge_metrics.append((name, initial_value))
+    #def _add_gauge(self, name, initial_value):
+    #    # add the gauge to a temporary list so it can be created later on
+    #    self._gauge_metrics.append((name, initial_value))
 
-    def _add_histogram(self, name):
-        # add the histogram to a temporary list so it can be created later on
-        self._histogram_metrics.append(name)
+    #def _add_histogram(self, name):
+    #    # add the histogram to a temporary list so it can be created later on
+    #    self._histogram_metrics.append(name)
 
-    def _initialise_metrics(self):
-        # don't import anything to do with prometheus until after we are sure
-        # the prometheus_multiproc_dir environment variable is set
-        from prometheus_client import Gauge, Histogram
-        # create all the metrics from the temporary lists built during the
-        # policy object initialisation
-        for name, value in self._gauge_metrics:
-            # descriptions don't seem to work in multiprocess?
-            gauge = Gauge(name, None, ["name"])
-            # pre-set the label so we don't need to look it up every time
-            self.metrics[name] = gauge.labels(name=self.name)
-            if value == "now":
-                self.metrics[name].set_to_current_time()
-            else:
-                self.metrics[name].set(value)
-        for name in self._histogram_metrics:
-            # descriptions don't seem to work in multiprocess?
-            histogram = Histogram(name, None, ["name"])
-            # pre-set the label so we don't need to look it up every time
-            self.metrics[name] = histogram.labels(name=self.name)
+    #def _initialise_metrics(self):
+    #    # don't import anything to do with prometheus until after we are sure
+    #    # the prometheus_multiproc_dir environment variable is set
+    #    from prometheus_client import Gauge, Histogram
+    #    # create all the metrics from the temporary lists built during the
+    #    # policy object initialisation
+    #    for name, value in self._gauge_metrics:
+    #        # descriptions don't seem to work in multiprocess?
+    #        gauge = Gauge(name, None, ["name"])
+    #        # pre-set the label so we don't need to look it up every time
+    #        self.metrics[name] = gauge.labels(name=self.name)
+    #        if value == "now":
+    #            self.metrics[name].set_to_current_time()
+    #        else:
+    #            self.metrics[name].set(value)
+    #    for name in self._histogram_metrics:
+    #        # descriptions don't seem to work in multiprocess?
+    #        histogram = Histogram(name, None, ["name"])
+    #        # pre-set the label so we don't need to look it up every time
+    #        self.metrics[name] = histogram.labels(name=self.name)
 
-    def _create_update_message(self, routes=None, done=True):
-        message = pb.Message()
-        message.type = pb.Message.UPDATE
-        message.update.source = self.name
-        if hasattr(self, "asn"):
-            message.update.asn = self.asn
-        if hasattr(self, "address"):
-            message.update.address = self.address
-        if routes:
-            message.update.routes = routes
-        message.update.done = done
-        return message

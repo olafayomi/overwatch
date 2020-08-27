@@ -21,13 +21,12 @@
 # @Author : Brendon Jones (Original Disaggregate Router)
 # @Author : Dimeji Fayomi
 
-
 import errno
+import json
 import os
 import select
 import sys
 import logging
-import messages_pb2 as pb
 
 
 def BGPConnection(outgoing_queue, command_queue):
@@ -72,19 +71,19 @@ def BGPConnection(outgoing_queue, command_queue):
             line = str(sys.stdin.readline(), "utf-8")
 
             if line is not None and len(line) != 0:
-                # wrap the json in a protocol buffer message
-                message = pb.Message()
-                message.type = pb.Message.BGP
-                message.bgp.json = line
-                # put it on the command queue to be processed
-                command_queue.put(message.SerializeToString())
+                try:
+                    message = json.loads(line)
+                    # put it on the command queue to be processed
+                    command_queue.put(("bgp", message))
+                except Exception:
+                    log.error("Invalid json read from standard in")
+                    continue
 
         if sys.stdout.fileno() in active[1]:
             # get a message from the queue
             message = outgoing_queue.get()
             # everything in this queue is just raw bytes, not protobuf messages
-            message = message.decode("utf-8")
-
+            #message = message.decode("utf-8")
             #log.debug("================ WRITING ================")
             #log.debug(message)
             # write it to exabgp over stdout

@@ -303,11 +303,8 @@ class NetworkManager(Process):
 
     def _update(self):
         # let all the peers know so they can update BGP to match new topology
-        message = pb.Message()
-        message.type = pb.Message.TOPOLOGY
-        message.topology.network = pickle.dumps(self._network.topology)
         for peer in self.peers:
-            peer.mailbox.put(message.SerializeToString())
+            peer.mailbox.put(("topology", self._network.topology))
 
     #def __str__(self):
         #return "\n".join([str(x) for x in self.nodes])

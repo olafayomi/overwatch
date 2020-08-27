@@ -45,14 +45,13 @@
     an exception will be thrown.
 """
 
-def communities_to_tuple_array(communities):
+def communities_to_tuple_array (communities):
     data = []
     if isinstance(communities, list):
         if len(communities) == 0:
             return data
 
-        # If we have a list of strings, tuples or lists process the individual
-        # list elements
+        # If we have a list of strings, tuples or lists process the individual list elements
         if (isinstance(communities[0], str) or
                 isinstance(communities[0], tuple) or
                 isinstance(communities[0], list)):
@@ -67,35 +66,43 @@ def communities_to_tuple_array(communities):
 
     return data
 
-def _community_to_tuple(community):
-    # Parse and convert a community string to a tuple
+def _community_to_tuple (community):
+    # Parse and convert a communtiy string to a tuple
     if isinstance(community, str):
-        parts = community.split(":")
-        if len(parts) != 2:
-            raise Exception("Community: only one separator (:) allowed (%s)" %
+        com_split = community.split(":")
+        if not len(com_split) == 2:
+            raise Exception("Community Parser: community string can only have one seperator (:), %s" %
                     (community))
 
         try:
-            return (int(parts[0]), int(parts[1]))
+            com_numA = int(com_split[0])
+            com_numB = int(com_split[1])
+            return (com_numA, com_numB)
         except ValueError:
-            raise Exception("Community: expected format NUMBER:NUMBER (%s)" %
+            raise Exception("Community Parser: community string %s needs to have format NUMBER:NUMBER" %
                     (community))
     # Convert a community array to a tuple
     elif isinstance(community, list):
-        if len(community) != 2:
-            raise Exception("Community: too many elements (%s)" % (community))
+        if not len(community) == 2:
+            raise Exception("Community Parser: community %s can only have 2 items in its array" %
+                    (community))
 
         try:
-            return (int(community[0]), int(community[1]))
+            com_numA = int(community[0])
+            com_numB = int(community[1])
+            return (com_numA, com_numB)
         except ValueError:
-            raise Exception("Community: could not convert to integer (%s)" %
+            raise Exception("Community Parser: community array items %s could not be converted to an integer" %
                     (community))
     elif isinstance(community, tuple):
         try:
-            return (int(community[0]), int(community[1]))
+            com_numA = int(community[0])
+            com_numB = int(community[1])
+            return (com_numA, com_numB)
         except ValueError:
-            raise Exception("Community: could not convert to integer (%s:%s)" %
+            raise Exception("Community Parser: community tuple items (%s, %s) could not be converted to an integers" %
                     (community))
     else:
-        raise Exception("Community: %s is unknown type %s" %
+        raise Exception("Community Parser: unkown type of community %s, found type %s" %
                 (community, type(community).__name__))
+

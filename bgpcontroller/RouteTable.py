@@ -23,11 +23,9 @@
 
 import logging
 import time
+from collections import defaultdict
 
 from PolicyObject import PolicyObject, ACCEPT
-from RouteEntry import RouteEntry
-import messages_pb2 as pb
-
 
 # what about prefixes inside aggregates where the AS set needs to be modified
 # every time? or withdrawing the final prefix inside the aggregate
@@ -45,17 +43,13 @@ class RouteTable(PolicyObject):
         self.log = logging.getLogger("RouteTable")
 
         self.routes = {}
-        self.pending = {}
         self.export_peers = []
-        self.update_source = set()
+        self.update_source = None
         self.actions.update({
-            pb.Message.UPDATE: self._process_update_message,
-            pb.Message.RELOAD: self._process_reload_message,
+            "update": self._process_update_message,
+            "reload": self._process_reload_message,
+            "debug": self._process_debug_message,
         })
-        # XXX can peer and table process update be merged into policy object?
-        # and use a label or something for peer/table if I care?
-        self._add_histogram("table_process_update_duration")
-        self._add_histogram("table_update_peer_duration")
 
     def __str__(self):
         return "RouteTable(%s, %d import filters %d export filters)" % (
@@ -69,11 +63,15 @@ class RouteTable(PolicyObject):
             peers = [peers]
         self.export_peers.extend(peers)
 
+    def _process_debug_message(self, message):
+        self.log.debug(self)
+        return None
+
     def _process_reload_message(self, message):
         # Try to find the peer object from its attributes
         peer = None
         for _peer in self.export_peers:
-            if _peer.name == message.reload.source:
+            if _peer.name == message["from"]:
                 peer = _peer
                 break
 
@@ -84,43 +82,26 @@ class RouteTable(PolicyObject):
         return None
 
     def _process_update_message(self, message):
-        with self.metrics["table_process_update_duration"].time():
-            peer = message.update.source
-            routes = []
+        peer = message.get("from")
+        # clear all the routes we received from this peer
+        self.routes[peer] = []
+        # update routes from this peer by running through the filters.
+        if isinstance(message["routes"], list):
+            # routes from a peer are just a list
+            self._try_import_routes(self.routes[peer], message["routes"])
+        elif isinstance(message["routes"], dict):
+            # routes from a table are a dictionary of lists
+            for routes in message["routes"].values():
+                self._try_import_routes(self.routes[peer], routes)
 
-            # create the temporary route storage if needed
-            if peer not in self.pending:
-                self.pending[peer] = []
-
-            buf = bytearray(message.update.routes)
-            mv = memoryview(buf)
-            offset = 0
-
-            while offset < len(buf):
-                route, length = RouteEntry.create_from_buffer(mv[offset:])
-                offset += length
-                routes.append(route)
-
-            self._try_import_routes(self.pending[peer], routes)
-
-            # when done, flip the pending routes into the main route dictionary
-            # and update all the peers with the new routes
-            if message.update.done:
-                # filter the routes as they come in rather than waiting to do
-                # them all just before we send them. Don't need to copy them
-                # as we'll just request them again if we need to rerun filters
-                mark = time.time()
-                self.routes[peer] = [x for routes in self.filter_export_routes(
-                        self.pending[peer],copy=False).values() for x in routes]
-                self.log.debug("%s took %fs to filter %d routes",
-                        self.name, time.time() - mark, len(self.routes[peer]))
-                # clear out the temporary storage
-                self.pending[peer] = []
-                # track this peer as a source of the most recent updates
-                self.update_source.add(peer)
-                # trigger an update message to the peers of this table
-                return self._update_peers
-            return None
+        # update all the peers with the new routes we received, and flag
+        # the peer as the source of the update so the table doesn't send
+        # a pointless update back. If multiple peers are updated then all
+        # peers will need updates. We save the source peer rather than
+        # passing it as an argument because we don't know what will happen
+        # between now and the update callback triggering
+        self.update_source = peer if self.update_source is None else None
+        return self._update_peers
 
     def _try_import_routes(self, table, routes):
         # run all the routes through the filter to see which we should keep
@@ -138,54 +119,45 @@ class RouteTable(PolicyObject):
         mark = time.time()
         for peer in self.export_peers:
             # Send the update to every peer in our table that needs it
-            if (len(self.update_source) > 1 or
-                        peer.name not in self.update_source):
-                self._update_peer(peer)
-        self.log.debug("%s sent routes to all peers in %f", self.name,
-                time.time() - mark)
-        self.update_source.clear()
+            if self.update_source != peer.name:
+                self._update_peer(peer, mark=mark)
+        self.update_source = None
 
     # XXX what if we have withdrawn all our routes...
-    def _update_peer(self, peer):
+    def _update_peer(self, peer, mark=None):
         """
             Filter and send routes to a specific peer from this table
         """
-        with self.metrics["table_update_peer_duration"].time():
+        if mark is None:
             mark = time.time()
 
-            combined = []
-            for source_peer, routes in self.routes.items():
-                # exclude routes we received from this source
-                if source_peer != peer.name:
-                    for route in routes:
+        # build a set of routes to send to a specific peer
+        combined = defaultdict(list)
+        for source_peer, routes in self.routes.items():
+            # exclude routes we received from this source
+            if source_peer != peer.name:
+                for route in routes:
+                    try:
+                        # if a peer, exclude routes that traverse its ASN
                         if (peer.asn not in route.as_path() and
                                 (route.as_set() is None or
                                  peer.asn not in route.as_set())):
-                            combined.append(route)
+                            combined[route.prefix].append(route)
+                    except AttributeError:
+                        # otherwise just add it to the list
+                        combined[route.prefix].append(route)
 
-            # if the peers that feed this table have all withdrawn their routes
-            # then we still need to send an empty update to alert the others
-            if len(combined) == 0:
-                message = self._create_update_message()
-                peer.mailbox.put(message.SerializeToString())
-                return
+        filtered_routes = self.filter_export_routes(combined)
+        self.log.info("Table %s filtered routes for %s in %fs" % (
+                self.name, peer.name, time.time() - mark))
 
-            buf = bytearray(1024 * 1024 * 100)
-            mv = memoryview(buf)
-            count = 0
-            while count < len(combined):
-                offset = 0
-                total = min(len(combined), count + self.batchsize)
-                for i in range(count, total):
-                    length = combined[i].save_to_buffer(mv[offset:])
-                    if length < 0:
-                        break
-                    offset += length
-                    i += 1
-                count += self.batchsize
-                message = self._create_update_message(
-                        bytes(buf[0:offset]), count >= len(combined))
-                peer.mailbox.put(message.SerializeToString())
-
-            self.log.info("Table %s sent %d routes to %s in %fs",
-                    self.name, len(combined), peer.name, time.time() - mark)
+        mark = time.time()
+        peer.mailbox.put(("update", {
+                    "from": self.name,
+                    "routes": filtered_routes
+                    }))
+        self.log.info("Table %s sent %d routes to %s in %fs" % (
+                self.name, len(filtered_routes), peer.name,
+                time.time() - mark))
+        del filtered_routes
+        del combined

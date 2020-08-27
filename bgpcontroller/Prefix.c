@@ -29,43 +29,80 @@
 #include <stdio.h>
 #include "Prefix.h"
 
-
 // ==================== HELPER METHODS ======================
 
 
 /*
- * Wrap strtol() to more easily check for errors parsing. Any characters
- * that aren't valid in the given base will result in an error. Returns -1
- * on failure.
- */
+    Convert a string number to a integer. If a error occurs the method will
+    return -1. Method will process up to a null terminator and makes sure
+    that all chars are numeric (between '0' and '9').
+*/
 static int process_number(char *token) {
-    int value;
-    char *endptr = NULL;
-    errno = 0;
-    value = strtol(token, &endptr, 10);
+    int val = -1;
+    int offset = 0;
+    while (*(token+offset)) {
+        char c = *(token+offset);
+        if (c >= '0' && c <= '9') {
+            if (val == -1)
+                val = 0;
 
-    /* any error, empty string or remaining characters is an error */
-    if ( errno != 0 || token == endptr || *endptr != '\0' ) {
-        return -1;
+            val = (val * 10) + c - '0';
+        } else {
+            return -1;
+        }
+        offset++;
     }
 
-    return value;
+    return val;
+}
+
+/*
+    Process a hex string to a integer. Similar to process_number however
+    we will also accept chars 'a' to 'f' (lower or uppercase).
+*/
+static int process_hexnumber(char *token) {
+    int val = -1;
+    int offset = 0;
+    while (*(token+offset)) {
+        char c = *(token+offset);
+        if (c >= '0' && c <= '9') {
+            // Convert numeric chars
+            if (val == -1)
+                val = 0;
+            val = (val * 16) + c - '0';
+        } else if (c >= 'a' && c <= 'f') {
+            // Convert letter hex (lowercase)
+            if (val == -1)
+                val = 0;
+
+            val = (val * 16) + (c - 'a' + 10);
+        } else if (c >= 'A' && c <= 'F') {
+            // Convert letter hex (uppercase)
+            if (val == -1)
+                val = 0;
+
+            val = (val * 16) + (c - 'A' + 10);
+        } else {
+            return -1;
+        }
+        offset++;
+    }
+
+    return val;
 }
 
 
 // ========================= IPV4 ===========================
 
 
-/* ---- (PYTHON) Initialisation and cleaning functions ---- */
+/* ---- (PYTHON) Initiation and cleaning functions ---- */
 
 
-/*
- * Create a new IPv4 object and set fields to default values
- */
+/* Method called when the a new object is created */
 static PyObject *IPv4_new(PyTypeObject *type, PyObject *args, PyObject *kwds) {
     IPv4 *self;
     self = (IPv4 *)type->tp_alloc(type, 0);
-    if ( self != NULL ) {
+    if (self != NULL) {
         self->ip = 0;
         self->prefixlen = IPV4_PREFIX_LEN_MAX;
     }
@@ -73,125 +110,125 @@ static PyObject *IPv4_new(PyTypeObject *type, PyObject *args, PyObject *kwds) {
     return (PyObject *)self;
 }
 
-
 /*
- * Wrap getaddrinfo() to convert a string containing an IP address into a
- * struct addrinfo we can later extract the address from.
- */
-static struct addrinfo* parse_address(char *address) {
-    struct addrinfo hint;
-    struct addrinfo *addrinfo;
+    Initiation method of a IPv4 prefix address.
+    We will expect to receive as arguments an IPv4 address string in
+    doted quad notation with or without a prefixlength. If no prefix
+    length is specified for both arguments the prefix default is a /32.
 
-    memset(&hint, 0, sizeof(struct addrinfo));
-    hint.ai_flags = AI_NUMERICHOST;
-    hint.ai_family = PF_UNSPEC;
-    hint.ai_socktype = SOCK_STREAM; /* limit it to a single socket type */
-    hint.ai_protocol = 0;
-    hint.ai_addrlen = 0;
-    hint.ai_addr = NULL;
-    hint.ai_canonname = NULL;
-    hint.ai_next = NULL;
-    addrinfo = NULL;
-
-    if ( getaddrinfo(address, NULL, &hint, &addrinfo) != 0 ) {
-        return NULL;
-    }
-
-    return addrinfo;
-}
-
-
-/*
- * Initialise a new IPv4 prefix object.
- *
- * Expects an IPv4 address string in dotted quad notation (with or without
- * a prefix length) and an optional separate prefix length argument. If no
- * prefix length is given (through either argument), it defaults to 32.
- *
- * The optional prefixlength argument will take precedence over any length
- * given as part of the IP address string.
- */
+    The prefixlength attribute is optional and specifies a number representing
+    the prefixlength of the prefix address. Please note that specifying
+    this object takes precendence over a / in the IP address string.
+*/
 static int IPv4_init(IPv4 *self, PyObject *args, PyObject *kwds) {
     static char *kwlist[] = {"ip", "prefixlen", NULL};
     char *ip_arg = NULL;
-    int prefixlen_arg = -1;
-    char *addrstr;
-    char *prefixstr;
-    char *fullstr;
-    char *dotptr;
-    struct addrinfo *addrinfo;
-    int dots;
+    short preflen_arg = -1;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "s|i", kwlist, &ip_arg,
-                &prefixlen_arg)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "s|b", kwlist,
+                                      &ip_arg, &preflen_arg))
         return -1;
-    }
 
-    /* make a copy so that we don't destroy the original python string */
-    fullstr = strdup(ip_arg);
+    // Make a copy of the string argument so we don't destroy it
+    // Preserve the argument varaible for the caller in python
+    char *ip_str = strdup(ip_arg);
 
-    /* split the address string on the '/' to separate address and prefixlen */
-    addrstr = strtok(fullstr, "/");
-    prefixstr = strtok(NULL, "/");
+    // Process the string into the IP address and prefixlength
+    char *token = ip_str;
+    int octets = 0;
+    int length = strlen(ip_str);
 
-    /*
-     * getaddrinfo()/inet_aton() will accept integers or outdated formats
-     * based around classful addressing, but we don't want to accept anything
-     * that isn't a proper dotted quad. Guess we count the number of dots.
-     */
-    dots = 0;
-    dotptr = addrstr;
-    while ( (dotptr = strchr(dotptr, '.')) != NULL ) {
-        dots++;
-        dotptr++;
-    }
+    for (int i = 0; i <= length; i++) {
+        char c = *(ip_str+i);
 
-    if ( dots != 3 ) {
-        PyErr_SetString(PyExc_ValueError, "Invalid IP address format.");
-        free(fullstr);
-        return -1;
-    }
+        /*
+            Process the first 3 octets. The octet seperator is a . charecter.
+            A null terminator or any other non numeric char will raise an
+            error.
+        */
+        if (octets < 3) {
+            if (c == '.') {
+                // Replace the token with a terminator
+                *(ip_str+i) = '\0';
 
-    /* try to convert the address string into a struct addrinfo */
-    addrinfo = parse_address(addrstr);
+                int val = process_number(token);
+                if (!(val >= 0 && val <= IPV4_QUAD_MAX)){
+                    free(ip_str);
+                    PyErr_SetString(PyExc_ValueError, "Invalid IP address format.");
+                    return -1;
+                }
 
-    if ( addrinfo == NULL ) {
-        PyErr_SetString(PyExc_ValueError, "Invalid IP address format.");
-        free(fullstr);
-        return -1;
-    }
+                // Pack the IP address and go to the next token in our string
+                self->ip |= ((unsigned int)(val & 0xff) << ((3-octets)*8));
+                octets++;
+                token = (ip_str+i+1);
+            } else if (c == '\0') {
+                free(ip_str);
+                PyErr_SetString(PyExc_ValueError, "Invalid IP address format");
+                return -1;
+            }
 
-    self->ip = ntohl(((struct sockaddr_in*)addrinfo->ai_addr)->sin_addr.s_addr);
-    freeaddrinfo(addrinfo);
+        /*
+            Process the last octet of the IP address. This octet needs to be terminated
+            by a null terminator or a mask length symbol. Any other non numeric
+            symbol will raise a error.
+        */
+        } else if (octets == 3) {
+            if (c == '/' || c == '\0') {
+                // Replace the split char with a null terminator
+                *(ip_str+i) = '\0';
 
-    /* prefer to use the prefixlen_arg, though it might not be set */
-    if ( prefixlen_arg == -1 ) {
-        if ( prefixstr != NULL ) {
-            /* otherwise try to extract prefix length from the address string */
-            prefixlen_arg = process_number(prefixstr);
-        } else {
-            /* failing that, set the prefix length to 32 */
-            prefixlen_arg = IPV4_PREFIX_LEN_MAX;
+                int val = process_number(token);
+                if (!(val >= 0 && val <= IPV4_QUAD_MAX)){
+                    free(ip_str);
+                    PyErr_SetString(PyExc_ValueError, "Invalid IP address format.");
+                    return -1;
+                }
+
+                // Pack the octet in the IP number
+                self->ip |= ((unsigned int)(val & 0xff) << ((3-octets)*8));
+
+                // Indicate that we have a mask in our string
+                if (c == '/')
+                    octets++;
+
+                token = (ip_str+i+1);
+                break;
+            }
         }
     }
 
-    free(fullstr);
+    // If no prefixlen argument was specified try to process a length from the IP string
+    if (preflen_arg == -1) {
+        if (octets == 4) {
+            int val = process_number(token);
 
-    /* check that the prefix length falls within the expected range */
-    if ( prefixlen_arg < 0 || prefixlen_arg > IPV4_PREFIX_LEN_MAX ) {
-        PyErr_SetString(PyExc_ValueError, "Invalid prefix length");
-        return -1;
+            // If the prefix length is invalid free up resources and raise a error
+            if (!(val >= 0 && val <= IPV4_PREFIX_LEN_MAX)) {
+                free(ip_str);
+                PyErr_SetString(PyExc_ValueError, "Prefix length is invalid");
+                return -1;
+            }
+
+            self->prefixlen = ((unsigned char)val);
+        }
+    } else {
+        self->prefixlen = ((unsigned char)preflen_arg);
     }
 
-    self->prefixlen = (uint8_t)prefixlen_arg;
+    // Initiation complete
+    free(ip_str);
+
+    // Validate the prefix length
+    if (!(self->prefixlen >= 0 && self->prefixlen <= IPV4_PREFIX_LEN_MAX)) {
+        PyErr_SetString(PyExc_ValueError, "Prefix length is invalid");
+        return -1;
+    }
 
     return 0;
 }
 
-
-/*
- * Clean-up method called to deallocate used resources
- */
+/* Clean-up method called to deallocate used resources */
 static void IPv4_dealloc(IPv4 *self) {
     Py_TYPE(self)->tp_free((PyObject*)self);
 }
@@ -200,54 +237,48 @@ static void IPv4_dealloc(IPv4 *self) {
 /* ---- (PYTHON) Builtin functions ---- */
 
 
-/*
- * Rich comparator method that compares two objects and returns a result
- */
-static PyObject *IPv4_richcmp(PyObject *obj1, PyObject *obj2, int operator) {
-    int compare_result;
-    int compare_raw;
+/* Rich comparator method that compares two objects and returns a result */
+static PyObject *IPv4_richcmp(PyObject *obj1, PyObject *obj2, int op)
+{
+    int c = 0, cmp_res;
 
-    /* Validate the type of the objects we are comparing */
-    if ( !PyObject_IsInstance(obj1, (PyObject*)&IPv4Type) ) {
-        PyErr_SetString(PyExc_AttributeError,
-                "Can only compare prefix objects");
+    // Validate the type of the objects we are comparing
+    if (!PyObject_IsInstance(obj1, (PyObject*)&IPv4Type)) {
+        PyErr_SetString(PyExc_AttributeError, "Can only compare prefix objects");
         return NULL;
     }
 
-    if ( !PyObject_IsInstance(obj2, (PyObject*)&IPv4Type) &&
-            !PyObject_IsInstance(obj2, (PyObject*)&IPv6Type) ) {
-        PyErr_SetString(PyExc_AttributeError,
-                "Can only compare prefix objects");
+    if (
+            (!PyObject_IsInstance(obj2, (PyObject*)&IPv4Type)) &&
+            (!PyObject_IsInstance(obj2, (PyObject*)&IPv6Type))
+    ) {
+        PyErr_SetString(PyExc_AttributeError, "Can only compare prefix objects");
         return NULL;
     }
 
-    /* Determine the ordering of the two objects */
-    compare_raw = IPv4_compare(obj1, obj2);
+    // Compare the two objects
+    cmp_res = IPv4_compare(obj1, obj2);
 
-    /* Check if the ordering matches what the comparison operator wanted */
-    switch ( operator ) {
-        case Py_LT: compare_result = compare_raw < 0; break;
-        case Py_LE: compare_result = compare_raw <= 0; break;
-        case Py_EQ: compare_result = compare_raw == 0; break;
-        case Py_NE: compare_result = compare_raw != 0; break;
-        case Py_GT: compare_result = compare_raw > 0; break;
-        case Py_GE: compare_result = compare_raw >= 0; break;
-        default: compare_result = 0; break;
+    // Return the result for the operation
+    switch (op) {
+    case Py_LT: c = cmp_res <  0; break;
+    case Py_LE: c = cmp_res <= 0; break;
+    case Py_EQ: c = cmp_res == 0; break;
+    case Py_NE: c = cmp_res != 0; break;
+    case Py_GT: c = cmp_res >  0; break;
+    case Py_GE: c = cmp_res >= 0; break;
     }
 
-    /* return the result of the actual comparison operator */
-    if ( compare_result ) {
+    // If the comparison is true return true
+    if (c) {
         Py_RETURN_TRUE;
     }
 
+    // Otherwise return false
     Py_RETURN_FALSE;
 }
 
-
-/*
- * Return the dotted quad string representation of an IPv4 prefix including
- * both address and prefix length.
- */
+/* Return the string represntation of an IPv4 prefix (doted quad IP/prefixlen) */
 static PyObject *IPv4_str(IPv4 *obj) {
     PyObject *ip = IPv4_ip_str(obj);
     PyObject *res = PyUnicode_FromFormat("%U/%d", ip, obj->prefixlen);
@@ -255,11 +286,14 @@ static PyObject *IPv4_str(IPv4 *obj) {
     return res;
 }
 
-
-/*
- * Hash function, based on the version, address and prefix length.
- */
+/* Hash function */
 static Py_hash_t IPv4_hash(IPv4 *obj){
+    /*
+        Hash function based on the initial Prefix.py module implementation.
+        Hash a tuple made up of the prefix version, IP address and prefix
+        length.
+    */
+
     Py_hash_t res;
     PyObject *tup = Py_BuildValue("(iOi)", 4, IPv4_ip(obj), obj->prefixlen);
     res = PyObject_Hash(tup);
@@ -267,42 +301,29 @@ static Py_hash_t IPv4_hash(IPv4 *obj){
     return res;
 }
 
-
-/*
- * Return the state of the object (for pickling)
- */
+/* Return the state of the object (for pickling) */
 static PyObject *IPv4_getstate(IPv4 *self) {
-    return Py_BuildValue(
-            "{sBsI}",
-            "prefixlen", self->prefixlen,
-            "ip", self->ip
-            );
+    return Py_BuildValue("{sBsI}", "prefixlen", self->prefixlen, "ip", self->ip);
 }
 
-
-/*
- * Restore the state of an object based on a state dictionary (for pickling)
- */
+/* Restore the state of a object based on a state dictionary (for pickling) */
 static PyObject *IPv4_setstate(IPv4 *self, PyObject *d) {
-    PyObject *ip;
-    PyObject *prefixlen;
-
-    ip = PyDict_GetItemString(d, "ip");
-    if ( ip == NULL ) {
+    PyObject *ip = PyDict_GetItemString(d, "ip");
+    if (ip == NULL) {
         PyErr_SetString(PyExc_AttributeError,
                 "Invalid set state dictionary received (no IP)!");
         return NULL;
     }
 
-    prefixlen = PyDict_GetItemString(d, "prefixlen");
-    if ( prefixlen == NULL ) {
+    PyObject *prefixlen = PyDict_GetItemString(d, "prefixlen");
+    if (prefixlen == NULL) {
         PyErr_SetString(PyExc_AttributeError,
                 "Invalid set state dictionary received (no prefixlen)!");
         return NULL;
     }
 
-    self->ip = (uint32_t)PyLong_AsLong(ip);
-    self->prefixlen = (uint8_t)PyLong_AsLong(prefixlen);
+    self->ip = (unsigned int)PyLong_AsLong(ip);
+    self->prefixlen = (unsigned char)PyLong_AsLong(prefixlen);
     Py_RETURN_NONE;
 }
 
@@ -311,153 +332,131 @@ static PyObject *IPv4_setstate(IPv4 *self, PyObject *d) {
 
 
 /*
- * Compare two prefix objects and return an integer less than, equal to, or
- * greater than zero if obj1 is found, respectively, to be less than, equal
- * to, or greater than obj2.
- */
+    Compare two Prefix objects and return a int describing their ordering
+    -1 = obj1 is lower than obj2
+     1 = obj1 is higher than obj2
+     0 = obj1 is equal to obj2
+*/
 static int IPv4_compare(PyObject *obj1, PyObject *obj2) {
-    uint8_t prefixlen1, prefixlen2;
-    uint32_t ip1, ip2;
+    unsigned char v1 = 0,v2 = 0,p1 = 0,p2 = 0;
+    unsigned int i1 = 0, i2 = 0;
 
-    if ( !PyObject_IsInstance(obj2, (PyObject*)&IPv4Type) ) {
-        /* IPv4 will always sort before IPv6 */
-        return -1;
+    i1 = ((IPv4*)obj1)->ip;
+    p1 = ((IPv4*)obj1)->prefixlen;
+    v1 = 4;
+
+    if (PyObject_IsInstance(obj2, (PyObject*)&IPv4Type)) {
+        i2 = ((IPv4*)obj2)->ip;
+        p2 = ((IPv4*)obj2)->prefixlen;
+        v2 = 4;
+    } else if (PyObject_IsInstance(obj2, (PyObject*)&IPv6Type)) {
+        // Comparing a IPv4 to a IPv6
+        v2 = 6;
     }
 
-    ip1 = ((IPv4*)obj1)->ip;
-    ip2 = ((IPv4*)obj2)->ip;
-
-    /* compare IP addresses */
-    if ( ip1 < ip2 ) {
+    // Order by the prefix version
+    if (v1 < v2) {
         return -1;
-    } else if ( ip1 > ip2 ) {
+    } else if (v1 > v2) {
+        // Always return 1 if IPv4 compare to IPv6
         return 1;
     }
 
-    prefixlen1 = ((IPv4*)obj1)->prefixlen;
-    prefixlen2 = ((IPv4*)obj2)->prefixlen;
-
-    /* compare prefix length */
-    if ( prefixlen1 < prefixlen2 ) {
+    // Order by the IP number of the prefixes
+    if (i1 < i2) {
         return -1;
-    } else if ( prefixlen1 > prefixlen2 ) {
+    } else if (i1 > i2) {
         return 1;
     }
 
-    /* prefixes are the same */
+    // Order by the prefix length
+    if (p1 < p2) {
+        return -1;
+    } else if (p1 > p2) {
+        return 1;
+    }
+
+    // If all are the same prefixes are the same
     return 0;
 }
 
-
-/*
- * Create and return an IPv4 prefix netmask.
- */
-static uint32_t IPv4_calculate_netmask(uint8_t prefixlen) {
-    if ( prefixlen >= IPV4_PREFIX_LEN_MAX ) {
+/* Create and return a IPv4 prefix netmask */
+static unsigned int IPv4_netmaskC(unsigned char prefixlen) {
+    // XXX: LEFT SHIFT BY ENTIRE BIT WIDTH IS UNDEFINED
+    if (prefixlen == 32)
         return IPV4_ALL_ONES;
-    }
 
     return IPV4_ALL_ONES ^ (IPV4_ALL_ONES >> prefixlen);
 }
 
-
-/*
- * Return a dotted quad representation of an IPv4 prefix.
- */
+/* Return a dotted quad representation of a IPv4 prefix */
 static PyObject *IPv4_ip_str(IPv4 *obj) {
-    struct in_addr addr;
-    char ipstr[INET_ADDRSTRLEN];
-
-    addr.s_addr = htonl(obj->ip);
-
-    if ( inet_ntop(AF_INET, &addr, ipstr, INET_ADDRSTRLEN) == NULL ) {
-        Py_RETURN_NONE;
-    }
-
-    return PyUnicode_FromString(ipstr);
+    unsigned char bytes[4];
+    bytes[0] = obj->ip & 0xFF;
+    bytes[1] = (obj->ip >> 8) & 0xFF;
+    bytes[2] = (obj->ip >> 16) & 0xFF;
+    bytes[3] = (obj->ip >> 24) & 0xFF;
+    return PyUnicode_FromFormat("%d.%d.%d.%d", bytes[3], bytes[2],
+            bytes[1], bytes[0]);
 }
 
 
 /* ---- (PYTHON) Object attributes and functions ---- */
 
 
-/*
- * Return the integer netmask of an IPv4 prefix.
- */
+/* Return the netmask of a IPv4 prefix */
 static PyObject *IPv4_netmask(IPv4 *self) {
-    return Py_BuildValue("I", IPv4_calculate_netmask(self->prefixlen));
+    return Py_BuildValue("I", IPv4_netmaskC(self->prefixlen));
 }
 
-
-/*
- * Return the integer netmask for a given prefix length.
- */
+/* return a netmask for a prefix length */
 static PyObject *IPv4_netmask_from_prefixlen(IPv4 *self, PyObject *preflenOBJ) {
-    int prefixlen;
-
-    if ( !PyLong_Check(preflenOBJ) ) {
-        PyErr_SetString(PyExc_AttributeError,
-                "Prefix length has to be a number");
+    if (!PyLong_Check(preflenOBJ)) {
+        PyErr_SetString(PyExc_AttributeError, "Prefix length has to be a number");
         return NULL;
     }
 
-    prefixlen = PyLong_AsLong(preflenOBJ);
-    if ( prefixlen < 0 || prefixlen > IPV4_PREFIX_LEN_MAX ) {
-        PyErr_SetString(PyExc_AttributeError, "Invalid prefix length");
+    long prefixlen = PyLong_AsLong(preflenOBJ);
+    if (!(prefixlen >= 0 && prefixlen <= 32)) {
+        PyErr_SetString(PyExc_AttributeError, "Prefix length has to be between 0 and 32");
         return NULL;
     }
 
-    return Py_BuildValue("I", IPv4_calculate_netmask((uint8_t)prefixlen));
+    return Py_BuildValue("I", IPv4_netmaskC((unsigned short)prefixlen));
 }
 
-
-/*
- * Return the max prefix length for the IP family.
- */
+/* Return the max prefix lengh for the IP family */
 static PyObject *IPv4_max_prefixlen(IPv4 *self) {
     return Py_BuildValue("i", IPV4_PREFIX_LEN_MAX);
 }
 
-
-/*
- * Return the IP address of an IPv4 prefix.
- */
+/* Return the IP address of a IPv4 prefix */
 static PyObject *IPv4_ip(IPv4 *self) {
     return Py_BuildValue("I", self->ip);
 }
 
-
-/*
- * Return the IP address AFI number.
- */
+/* Return the IP address AFI number */
 static PyObject *IPv4_afi(IPv4 *self) {
     return Py_BuildValue("i", 1);
 }
 
-
-/*
- * Return the IP address SAFI number.
- */
+/* Return the IP address SAFI number */
 static PyObject *IPv4_safi(IPv4 *self) {
     // TODO: Implement correct SAFI computation
     return Py_BuildValue("i", 1);
 }
 
-
-/*
- * Check if one IPv4 prefix contains another IPv4 prefix.
- */
-static PyObject *IPv4_contains(IPv4 *self, PyObject *other) {
-    /* if the other object isn't an IPv4 object then it isn't contained */
-    if ( !PyObject_IsInstance(other, (PyObject*)&IPv4Type) ) {
+/* Check if two prefixes are contained within each other */
+static PyObject *IPv4_contains(IPv4 *self, PyObject *other)
+{
+    // If the other py object is not IPv4 return false
+    if (!PyObject_IsInstance(other, (PyObject*)&IPv4Type))
         Py_RETURN_FALSE;
-    }
 
-    /* check if all the bits in our prefix length match in both prefixes */
-    if ( (((IPv4*)other)->ip & IPv4_calculate_netmask(self->prefixlen)) ==
-            self->ip ) {
+    if ((
+        ((IPv4*)other)->ip & IPv4_netmaskC(self->prefixlen)) == self->ip
+    )
         Py_RETURN_TRUE;
-    }
 
     Py_RETURN_FALSE;
 }
@@ -466,16 +465,14 @@ static PyObject *IPv4_contains(IPv4 *self, PyObject *other) {
 // ========================= IPV6 ===========================
 
 
-/* ---- (PYTHON) Initialisation and cleaning functions ---- */
+/* ---- (PYTHON) Initiation and cleaning functions ---- */
 
 
-/*
- * Create a new IPv6 object and set fields to default values.
- */
+/* Method called when the a new object is created */
 static PyObject *IPv6_new(PyTypeObject *type, PyObject *args, PyObject *kwds) {
     IPv6 *self;
     self = (IPv6 *)type->tp_alloc(type, 0);
-    if ( self != NULL ) {
+    if (self != NULL) {
         self->upper = 0;
         self->lower = 0;
         self->prefixlen = IPV6_PREFIX_LEN_MAX;
@@ -484,140 +481,238 @@ static PyObject *IPv6_new(PyTypeObject *type, PyObject *args, PyObject *kwds) {
     return (PyObject *)self;
 }
 
-
 /*
- * Initialise a new IPv6 prefix object.
- *
- * Expects an IPv4 address string in dotted quad notation (with or without
- * a prefix length) and an optional separate prefix length argument. If no
- * prefix length is given (through either argument), it defaults to 128.
- *
- * The optional prefixlength argument will take precedence over any length
- * given as part of the IP address string.
- */
+    Initiation method of a IPv6 prefix address.
+    We will expect to receive as arguments an IPv6 address string with or without a
+    prefixlength. If no prefix length is specified for both arguments the prefix
+    default is a /128.
+
+    The prefixlength attribute is optional and specifies a number representing
+    the prefixlength of the prefix address. Please note that specifying
+    this object takes precendence over a / in the IP address string.
+*/
 static int IPv6_init(IPv6 *self, PyObject *args, PyObject *kwds) {
     static char *kwlist[] = {"ip", "prefixlen", NULL};
     char *ip_arg = NULL;
-    int prefixlen_arg = -1;
-    char *addrstr;
-    char *prefixstr;
-    char *fullstr;
-    struct addrinfo *addrinfo;
-    struct in6_addr in6;
+    short preflen_arg = -1;
 
-    if ( !PyArg_ParseTupleAndKeywords(args, kwds, "s|i", kwlist, &ip_arg,
-                &prefixlen_arg) ) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "s|b", kwlist,
+                                      &ip_arg, &preflen_arg))
         return -1;
-    }
 
-    /* make a copy so that we don't destroy the original python string */
-    fullstr = strdup(ip_arg);
+    // Make a copy of the string
+    char *ip_str = strdup(ip_arg);
 
-    /* split the address string on the '/' to separate address and prefixlen */
-    addrstr = strtok(fullstr, "/");
-    prefixstr = strtok(NULL, "/");
+    // Process the string into the IP address and prefixlength
+    char *token = ip_str;
+    int length = strlen(ip_str);
 
-    /* try to convert the address string into a struct addrinfo */
-    addrinfo = parse_address(addrstr);
+    int parts[8] = {0,0,0,0,0,0,0,0};
 
-    if ( addrinfo == NULL ) {
-        PyErr_SetString(PyExc_ValueError, "Invalid IP address format.");
-        free(fullstr);
-        return -1;
-    }
+    // The location of the pad hextet char (::)
+    int padHextet = -1;
 
-    /* extract the upper and lower parts from the in6_addr */
-    in6 = ((struct sockaddr_in6*)addrinfo->ai_addr)->sin6_addr;
-    self->upper = (((uint64_t)ntohl(in6.s6_addr32[0])) << 32) +
-        ntohl(in6.s6_addr32[1]);
-    self->lower = (((uint64_t)ntohl(in6.s6_addr32[2])) << 32) +
-        ntohl(in6.s6_addr32[3]);
-    freeaddrinfo(addrinfo);
+    // The number of hextets processed
+    int hextet = 0;
+    // Do we have a mask to process from the str
+    unsigned char proc_mask = 0;
 
-    /* prefer to use the prefixlen_arg, though it might not be set */
-    if ( prefixlen_arg == -1 ) {
-        if ( prefixstr != NULL ) {
-            /* otherwise try to extract prefix length from the address string */
-            prefixlen_arg = process_number(prefixstr);
-        } else {
-            /* failing that, set the prefix length to 32 */
-            prefixlen_arg = IPV6_PREFIX_LEN_MAX;
+    for (int i = 0; i <= length; i++) {
+        char c = *(ip_str+i);
+
+        if (c == ':') {
+            // Check if we are over the number of allowed groups in the IP
+            if (hextet >= 7) {
+                free(ip_str);
+                PyErr_SetString(PyExc_ValueError, "Invalid IP address format. Too many groups!");
+                return -1;
+            }
+
+            // Replace the token with a terminator
+            *(ip_str+i) = '\0';
+
+            // If this this is the first group do not parse for numbers
+            // XXX: We assume that : should be followed by :: for offset 0.
+            // if not the next iteration we will get an error raised
+            if (i != 0) {
+                int val = process_hexnumber(token);
+                if (!(val >= 0 && val <= IPV6_QUAD_MAX)){
+                    free(ip_str);
+                    PyErr_SetString(PyExc_ValueError, "Invalid IP address format");
+                    return -1;
+                }
+
+                parts[hextet] = val;
+                hextet ++;
+                token = (ip_str+i+1);
+            }
+
+            // Check for a pad char
+            if (*(ip_str+i+1) == ':') {
+                if (padHextet != -1) {
+                    // We can only have one pad char
+                    free(ip_str);
+                    PyErr_SetString(PyExc_ValueError, "IPv6 can only contain one ::");
+                    return -1;
+                }
+
+                i += 1;
+                token = (ip_str+i+1);
+                padHextet = hextet;
+
+                // Replace the end pad char with a terminator
+                *(ip_str+i) = '\0';
+            }
+        } else if ((c == '/') || (c == '\0')) {
+            *(ip_str+i) = '\0';
+
+            // If the end char is a : but not part of a :: we have a invalid address
+            if (*(ip_str+i-1) == '\0' && *(ip_str+i-2) != '\0') {
+                free(ip_str);
+                PyErr_SetString(PyExc_ValueError,
+                    "Invalid IP address format. IP must end on a pad zero or have e number");
+                return -1;
+            }
+
+            // Check if we have digits in the final group
+            if (*(ip_str+i-1) != '\0') {
+                int val = process_hexnumber(token);
+                if (!(val >= 0 && val <= IPV6_QUAD_MAX)){
+                    free(ip_str);
+                    PyErr_SetString(PyExc_ValueError, "Invalid IP address format");
+                    return -1;
+                }
+
+                parts[hextet] = val;
+                hextet ++;
+                token = (ip_str+i+1);
+            }
+
+            // If we are in the mask move to the mask token for processing
+            if (c == '/') {
+                proc_mask = 1;
+                token = (ip_str+i+1);
+            }
+
+            // If we do not have a pad char skip the shifting
+            if (padHextet != -1) {
+                int padShift = (hextet - padHextet);
+                if (padShift != 0) {
+                    if (padHextet + padShift >= 8) {
+                        free(ip_str);
+                        PyErr_SetString(PyExc_ValueError,
+                            "Invalid IP address. Too many groups!");
+                        return -1;
+                    }
+
+                    for (int q = padShift-1; q >= 0; q--) {
+                        int index1 = padHextet+q;
+                        int index2 = (8-padShift)+q;
+                        parts[index2] = parts[index1];
+                        parts[index1] = 0;
+                    }
+                }
+            } else if (padHextet == -1 && hextet != 8) {
+                free(ip_str);
+                PyErr_SetString(PyExc_ValueError,
+                    "Invalid IP address. IPv6 prefix dosen't have enough groups");
+                return -1;
+            }
+
+            // Pack the numbers to the sections
+            self->upper = parts[0];
+            self->upper = (self->upper << 16) | parts[1];
+            self->upper = (self->upper << 16) | parts[2];
+            self->upper = (self->upper << 16) | parts[3];
+
+            self->lower = parts[4];
+            self->lower = (self->lower << 16) | parts[5];
+            self->lower = (self->lower << 16) | parts[6];
+            self->lower = (self->lower << 16) | parts[7];
+
+            break;
         }
     }
 
-    free(fullstr);
+    // If no prefixlen argument was specified try to process a length from the IP string
+    if (preflen_arg == -1) {
+        if (proc_mask != 0) {
+            // Get the netmask
+            int val = process_number(token);
 
-    /* check that the prefix length falls within the expected range */
-    if ( prefixlen_arg < 0 || prefixlen_arg > IPV6_PREFIX_LEN_MAX ) {
-        PyErr_SetString(PyExc_ValueError, "Invalid prefix length");
-        return -1;
+            if (!(val >= 0 && val <= IPV6_PREFIX_LEN_MAX)) {
+                free(ip_str);
+                PyErr_SetString(PyExc_ValueError, "Prefix length is invalid");
+                return -1;
+            }
+
+            self->prefixlen = ((unsigned char)val);
+        }
+    } else {
+        self->prefixlen = ((unsigned char)preflen_arg);
     }
 
-    self->prefixlen = (uint8_t)prefixlen_arg;
+    free(ip_str);
+
+    // Validate the prefix length
+    if (!(self->prefixlen >= 0 && self->prefixlen <= IPV6_PREFIX_LEN_MAX)) {
+        PyErr_SetString(PyExc_ValueError, "Prefix length is invalid");
+        return -1;
+    }
 
     return 0;
 }
 
-
-/*
- * Clean-up method
- */
+/* Clean-up method */
 static void IPv6_dealloc(IPv6 *self) {
     Py_TYPE(self)->tp_free((PyObject*)self);
 }
 
-
 /* ---- (PYTHON) Builtin functions ---- */
 
 
-/*
- * Rich comparator method that compares two objects and returns a result
- */
-static PyObject *IPv6_richcmp(PyObject *obj1, PyObject *obj2, int operator) {
-    int compare_result;
-    int compare_raw;
+/* Rich comparator method that compares two objects and returns a result */
+static PyObject *IPv6_richcmp(PyObject *obj1, PyObject *obj2, int op)
+{
+    int c = 0, cmp_res;
 
-    /* Validate the type of the objects we are comparing */
-    if ( !PyObject_IsInstance(obj1, (PyObject*)&IPv6Type) ) {
-        PyErr_SetString(PyExc_AttributeError,
-                "Can only compare prefix objects");
+    // Validate the type of the objects we are comparing
+    if (!PyObject_IsInstance(obj1, (PyObject*)&IPv6Type)) {
+        PyErr_SetString(PyExc_AttributeError, "Can only compare prefix objects");
         return NULL;
     }
 
-    if ( !PyObject_IsInstance(obj2, (PyObject*)&IPv4Type) &&
-            !PyObject_IsInstance(obj2, (PyObject*)&IPv6Type) ) {
-        PyErr_SetString(PyExc_AttributeError,
-                "Can only compare prefix objects");
+    if (
+            (!PyObject_IsInstance(obj2, (PyObject*)&IPv4Type)) &&
+            (!PyObject_IsInstance(obj2, (PyObject*)&IPv6Type))
+    ) {
+        PyErr_SetString(PyExc_AttributeError, "Can only compare prefix objects");
         return NULL;
     }
 
-    /* Determine the ordering of the two objects */
-    compare_raw = IPv6_compare(obj1, obj2);
+    // Compare the two objects
+    cmp_res = IPv6_compare(obj1, obj2);
 
-    /* Check if the ordering matches what the comparison operator wanted */
-    switch ( operator ) {
-        case Py_LT: compare_result = compare_raw < 0; break;
-        case Py_LE: compare_result = compare_raw <= 0; break;
-        case Py_EQ: compare_result = compare_raw == 0; break;
-        case Py_NE: compare_result = compare_raw != 0; break;
-        case Py_GT: compare_result = compare_raw > 0; break;
-        case Py_GE: compare_result = compare_raw >= 0; break;
-        default: compare_result = 0; break;
+    // Return the result for the operation
+    switch (op) {
+    case Py_LT: c = cmp_res <  0; break;
+    case Py_LE: c = cmp_res <= 0; break;
+    case Py_EQ: c = cmp_res == 0; break;
+    case Py_NE: c = cmp_res != 0; break;
+    case Py_GT: c = cmp_res >  0; break;
+    case Py_GE: c = cmp_res >= 0; break;
     }
 
-    /* return the result of the actual comparison operator */
-    if ( compare_result ) {
+    // If the comparison is true return true
+    if (c) {
         Py_RETURN_TRUE;
     }
 
+    // Otherwise return false
     Py_RETURN_FALSE;
 }
 
-
-/*
- * Return the hexadecimal string representation of an IPv6 prefix including
- * both address and prefix length.
- */
+/* Return the string representation of a IPv6 prefix (IP/prefixlen) */
 static PyObject *IPv6_str(IPv6 *obj) {
     PyObject *ip = IPv6_ip_str(obj);
     PyObject *res = PyUnicode_FromFormat("%U/%d", ip, obj->prefixlen);
@@ -625,11 +720,14 @@ static PyObject *IPv6_str(IPv6 *obj) {
     return res;
 }
 
-
-/*
- * Hash function, based on the version, address and prefix length.
- */
+/* IPv6 hash function */
 static Py_hash_t IPv6_hash(IPv6 *obj){
+    /*
+        Hash function based on the initial Prefix.py module implementation.
+        Hash a tuple made up of the prefix version, IP address and prefix
+        length.
+    */
+
     Py_hash_t res;
     PyObject *tup = Py_BuildValue("(iOc)", 6, IPv6_ip(obj), obj->prefixlen);
     res = PyObject_Hash(tup);
@@ -637,51 +735,38 @@ static Py_hash_t IPv6_hash(IPv6 *obj){
     return res;
 }
 
-
-/*
- * Return the state of the object (for pickling)
- */
+/* Return the state of the object (for pickling) */
 static PyObject *IPv6_getstate(IPv6 *self) {
-    return Py_BuildValue(
-            "{sBsKsK}",
-            "prefixlen", self->prefixlen,
-            "lower", self->lower,
-            "upper", self->upper);
+    return Py_BuildValue("{sBsKsK}", "prefixlen", self->prefixlen,
+                "lower", self->lower, "upper", self->upper);
 }
 
-
-/*
- * Restore the state of an object based on a state dictionary (for pickling)
- */
+/* Restore the state of a object based on a state dictionary (for pickling) */
 static PyObject *IPv6_setstate(IPv6 *self, PyObject *d) {
-    PyObject *lower;
-    PyObject *upper;
-    PyObject *prefixlen;
-
-    lower = PyDict_GetItemString(d, "lower");
-    if ( lower == NULL ) {
+    PyObject *lower = PyDict_GetItemString(d, "lower");
+    if (lower == NULL) {
         PyErr_SetString(PyExc_AttributeError,
                 "Invalid set state dictionary received (no IP lower)!");
         return NULL;
     }
 
-    upper = PyDict_GetItemString(d, "upper");
-    if ( upper == NULL ) {
+    PyObject *upper = PyDict_GetItemString(d, "upper");
+    if (upper == NULL) {
         PyErr_SetString(PyExc_AttributeError,
                 "Invalid set state dictionary received (no IP upper)!");
         return NULL;
     }
 
-    prefixlen = PyDict_GetItemString(d, "prefixlen");
-    if ( prefixlen == NULL ) {
+    PyObject *prefixlen = PyDict_GetItemString(d, "prefixlen");
+    if (prefixlen == NULL) {
         PyErr_SetString(PyExc_AttributeError,
                 "Invalid set state dictionary received (no prefixlen)!");
         return NULL;
     }
 
-    self->upper = (uint64_t)PyLong_AsUnsignedLongLong(upper);
-    self->lower = (uint64_t)PyLong_AsUnsignedLongLong(lower);
-    self->prefixlen = (uint8_t)PyLong_AsLong(prefixlen);
+    self->upper = (unsigned long long)PyLong_AsUnsignedLongLong(upper);
+    self->lower = (unsigned long long)PyLong_AsUnsignedLongLong(lower);
+    self->prefixlen = (unsigned char)PyLong_AsLong(prefixlen);
     Py_RETURN_NONE;
 }
 
@@ -690,208 +775,259 @@ static PyObject *IPv6_setstate(IPv6 *self, PyObject *d) {
 
 
 /*
- * Compare two prefix objects and return an integer less than, equal to, or
- * greater than zero if obj1 is found, respectively, to be less than, equal
- * to, or greater than obj2.
- */
+    Compare two Prefix objects and return a int describing their ordering
+    -1 = obj1 is lower than obj2
+     1 = obj1 is higher than obj2
+     0 = obj1 is equal to obj2
+*/
 static int IPv6_compare(PyObject *obj1, PyObject *obj2) {
-    uint8_t prefixlen1, prefixlen2;
-    uint64_t ip1upper, ip1lower, ip2upper, ip2lower;
+    unsigned char v1 = 0,v2 = 0,p1 = 0,p2 = 0;
+    unsigned long long i1u = 0, i1l = 0, i2u = 0, i2l = 0;
 
-    if ( !PyObject_IsInstance(obj2, (PyObject*)&IPv6Type) ) {
-        /* IPv6 will always sort after IPv4 */
-        return 1;
+    i1u = ((IPv6*)obj1)->upper;
+    i1l = ((IPv6*)obj1)->lower;
+    p1 = ((IPv6*)obj1)->prefixlen;
+    v1 = 6;
+
+    if (PyObject_IsInstance(obj2, (PyObject*)&IPv6Type)) {
+        i2u = ((IPv6*)obj2)->upper;
+        i2l = ((IPv6*)obj2)->lower;
+        p2 = ((IPv6*)obj2)->prefixlen;
+        v2 = 6;
+    } else {
+        v2 = 4;
     }
 
-    ip1upper = ((IPv6*)obj1)->upper;
-    ip1lower = ((IPv6*)obj1)->lower;
-    ip2upper = ((IPv6*)obj2)->upper;
-    ip2lower = ((IPv6*)obj2)->lower;
-
-    /* compare IP addresses */
-    if ( (ip1upper < ip2upper) ||
-            (ip1upper == ip2upper && ip1lower < ip2lower) ) {
+    // Order by the prefix version
+    if (v1 < v2) {
         return -1;
-    } else if ( (ip1upper > ip2upper) ||
-            (ip1upper == ip2upper && ip1lower > ip2lower) ) {
+    } else if (v1 > v2) {
         return 1;
     }
 
-    prefixlen1 = ((IPv6*)obj1)->prefixlen;
-    prefixlen2 = ((IPv6*)obj2)->prefixlen;
-
-    /* compare prefix length */
-    if ( prefixlen1 < prefixlen2 ) {
+    // Order by the IP number of the prefixes
+    if ((i1u < i2u) || (i1u == i2u && i1l < i2l)) {
         return -1;
-    } else if ( prefixlen1 > prefixlen2 ) {
+    } else if ((i1u > i2u) || (i1u == i2u && i1l > i2l)) {
         return 1;
     }
 
-    /* prefixes are the same */
+    // Order by the prefix length
+    if (p1 < p2) {
+        return -1;
+    } else if (p1 > p2) {
+        return 1;
+    }
+
+    // If all are the same prefixes are the same
     return 0;
 }
 
-
-/*
- * Create and return the upper portion of an IPv6 netmask.
- */
-static uint64_t IPv6_netmask_upper(uint8_t prefixlen) {
-    if ( prefixlen >= 64 ) {
+/* Create and return a upper IPv6 netmask section */
+static unsigned long long IPv6_netmaskUpperC(unsigned short prefixlen) {
+    if (prefixlen >= 64)
         return IPV6_ALL_ONES;
-    }
 
     return IPV6_ALL_ONES ^ (IPV6_ALL_ONES >> prefixlen);
 }
 
-
-/*
- * Create and return the lower portion of an IPv6 netmask
- */
-static uint64_t IPv6_netmask_lower(uint8_t prefixlen) {
-    int lowerlen;
-
-    if ( prefixlen <= 64 ) {
+/* Create and return a lower IPv6 netmask section */
+static unsigned long long IPv6_netmaskLowerC(unsigned short prefixlen) {
+    if (prefixlen <= 64)
         return 0ULL;
-    }
 
-    lowerlen = prefixlen - 64;
+    int len = prefixlen - 64;
 
-    if ( lowerlen >= 64 ) {
+    // XXX: PREVENT FULL WIDTH SHIFT ERROR
+    if (len == 64)
         return IPV6_ALL_ONES;
-    }
-
-    return IPV6_ALL_ONES ^ (IPV6_ALL_ONES >> lowerlen);
+    return IPV6_ALL_ONES ^ (IPV6_ALL_ONES >> len);
 }
 
+/* Generate a binary string from a upper and lower section of a IPv6 prefix */
+static char *combine_to_bin(unsigned long long upper, unsigned long long lower) {
+    // Allocate space for our binary string
+    char *ptr = malloc(129);
 
-/*
- * Generate a full IPv6 address or netmask as a string from the upper 64 bits
- * and the lower 64 bits of the value.
- */
-static PyObject *combine_to_address(uint64_t upper, uint64_t lower) {
-    char *ptr;
-    PyObject *obj;
-
-    if ( asprintf(&ptr, "%.16" PRIx64 "%.16" PRIx64, upper, lower) < 0 ) {
-        Py_RETURN_NONE;
+    // Iterate through the upper value and create a binary string from it
+    unsigned long long mask = 0x8000000000000000U;
+    for (int i = 0; i < 64; i++) {
+        if ((upper & mask) == 0)
+            *(ptr+i) = '0';
+        else
+            *(ptr+i) = '1';
+        mask >>= 1;
     }
 
-    obj = PyLong_FromString(ptr, NULL, 16);
+    // Create the binary string from the lower value
+    mask = 0x8000000000000000U;
+    for (int i = 64; i < 128; i++) {
+        if ((lower & mask) == 0)
+            *(ptr+i) = '0';
+        else
+            *(ptr+i) = '1';
+        mask >>= 1;
+    }
 
-    free(ptr);
-    return obj;
+    // Terminate the string and return the pointer to it
+    *(ptr+128) = '\0';
+    return ptr;
 }
 
-
 /*
- *  Return a python string representation of an IPv6 IP address.
- */
+    Return a python string of a IPv6 IP address. This method
+    will follow IPv6 compression practices (remove leading 0s from
+    groups and use the :: to pad longest sequence with 0s).
+*/
 static PyObject *IPv6_ip_str(IPv6 *obj) {
-    struct in6_addr addr;
-    char ipstr[INET6_ADDRSTRLEN];
+    char *ptr = malloc(40);
 
-    addr.s6_addr32[0] = htonl((obj->upper >> 32) & 0xffffffff);
-    addr.s6_addr32[1] = htonl(obj->upper & 0xffffffff);
-    addr.s6_addr32[2] = htonl((obj->lower >> 32) & 0xffffffff);
-    addr.s6_addr32[3] = htonl(obj->lower & 0xffffffff);
+    // Seperate the upper and lower into IP parts
+    int parts[8] = {0,0,0,0,0,0,0};
+    unsigned long long upper = obj->upper;
+    unsigned long long lower = obj->lower;
 
-    if ( inet_ntop(AF_INET6, &addr, ipstr, INET6_ADDRSTRLEN) == NULL ) {
-        Py_RETURN_NONE;
+    for (int i = 3; i >= 0; i--) {
+        parts[i] = upper & 0xffff;
+        upper >>= 16;
     }
 
-    return PyUnicode_FromString(ipstr);
+    for (int i = 7; i >= 4; i--) {
+        parts[i] = lower & 0xffff;
+        lower >>= 16;
+    }
+
+    // Find the longest possible pad with zero size
+    int longPadSize = -1;
+    int longPadIndex = -1;
+    int padSize = 0;
+
+    for (int i = 0; i < 8; i++) {
+        if (parts[i] == 0) {
+            padSize ++;
+            if (longPadSize < padSize) {
+                longPadSize = padSize;
+                longPadIndex = i-(padSize-1);
+            }
+        } else {
+            padSize = 0;
+        }
+    }
+
+    // Format the IP to a string
+    int strIndex = 0;
+    for (int i = 0; i < 8; i++) {
+        // Check if the current group is a pad with zero group
+        // XXX: RFC 5952 specifies that we can pad a single group at first
+        // but then states that we should not use :: to pad a single field.
+        // Modify our implementation to match the default python implementation!
+        if (longPadSize > 1 && longPadIndex == i) {
+            if (i == 0) {
+                *(ptr+strIndex) = ':';
+                *(ptr+strIndex+1) = ':';
+                *(ptr+strIndex+2) = '\0';
+                strIndex += 2;
+            } else {
+                *(ptr+strIndex-1) = ':';
+                *(ptr+strIndex) = ':';
+                *(ptr+strIndex+1) = '\0';
+                strIndex += 1;
+            }
+        // If this is not a pad with zero group (or the size is less than 2)
+        // Format the IP address group value and write it to the string
+        } else if (
+            (longPadSize <= 1) ||
+            (!(i >= longPadIndex && i < (longPadIndex+longPadSize)))
+        ) {
+            strIndex += sprintf((ptr+strIndex), "%x", parts[i]);
+            *(ptr+strIndex) = ':';
+
+            if (i != 7)
+                strIndex++;
+        }
+    }
+
+    // Zero pad the string at the end
+    *(ptr+strIndex) = '\0';
+
+    // Convert the string to a pythons tring and return the result
+    PyObject *res = PyUnicode_FromString(ptr);
+    free(ptr);
+    return res;
 }
 
 
 /* ---- (PYTHON) Object attributes and functions ---- */
 
 
-/*
- * Return the netmask of an IPv6 prefix.
- */
+/* Return the netmask of a IPv6 prefix */
 static PyObject *IPv6_netmask(IPv6 *self) {
-    return combine_to_address(
-            IPv6_netmask_upper(self->prefixlen),
-            IPv6_netmask_lower(self->prefixlen));
+    char *ptr = combine_to_bin(
+            IPv6_netmaskUpperC(self->prefixlen),
+            IPv6_netmaskLowerC(self->prefixlen));
+    PyObject *obj = PyLong_FromString(ptr, NULL, 2);
+    free(ptr);
+    return obj;
 }
 
-
-/*
- * Return a netmask for an IPv6 prefix length.
- */
+/* Return a netmask for a prefix length */
 static PyObject *IPv6_netmask_from_prefixlen(IPv6 *self, PyObject *preflenOBJ) {
-    long prefixlen;
-
-     if ( !PyLong_Check(preflenOBJ) ) {
-        PyErr_SetString(PyExc_AttributeError,
-                "Prefix length has to be a number");
+     if (!PyLong_Check(preflenOBJ)) {
+        PyErr_SetString(PyExc_AttributeError, "Prefix length has to be a number");
+        return NULL;
+    }
+    long prefixlen = PyLong_AsLong(preflenOBJ);
+    if (!(prefixlen >= 0 && prefixlen <= 128)) {
+        PyErr_SetString(PyExc_AttributeError, "Prefix length has to be between 0 and 128");
         return NULL;
     }
 
-    prefixlen = PyLong_AsLong(preflenOBJ);
-    if ( prefixlen < 0 || prefixlen > 128 ) {
-        PyErr_SetString(PyExc_AttributeError,
-                "Prefix length has to be between 0 and 128");
-        return NULL;
-    }
-
-    /* Generate and return the netmask */
-    return combine_to_address(
-            IPv6_netmask_upper(prefixlen),
-            IPv6_netmask_lower(prefixlen));
+    // Generate and return the netmask
+    char *ptr = combine_to_bin(
+            IPv6_netmaskUpperC(prefixlen),
+            IPv6_netmaskLowerC(prefixlen));
+    PyObject *obj = PyLong_FromString(ptr, NULL, 2);
+    free(ptr);
+    return obj;
 }
 
-
-/*
- * Return the max prefix length for the IP family
- */
+/* Return the max prefix lengh for the IP family */
 static PyObject *IPv6_max_prefixlen(IPv6 *self) {
     return Py_BuildValue("i", IPV6_PREFIX_LEN_MAX);
 }
 
-
-/*
- * Return the IP address of an IPv6 prefix
- */
+/* Return the IP address of a IPv6 prefix */
 static PyObject *IPv6_ip(IPv6 *self) {
-    return combine_to_address(self->upper, self->lower);
+    char *ptr = combine_to_bin(
+            self->upper,
+            self->lower);
+    PyObject *obj = PyLong_FromString(ptr, NULL, 2);
+    free(ptr);
+    return obj;
 }
 
-
-/*
- * Return the IP address AFI number.
- */
+/* Return the IP address AFI number */
 static PyObject *IPv6_afi(IPv6 *self) {
     return Py_BuildValue("i", 2);
 }
 
-
-/*
- * Return the IP address SAFI number.
- */
+/* Return the IP address SAFI number */
 static PyObject *IPv6_safi(IPv6 *self) {
     // TODO: Implement correct SAFI computation
     return Py_BuildValue("i", 1);
 }
 
-
-/*
- * Check if one IPv6 prefix contains another IPv6 prefix.
- */
-static PyObject *IPv6_contains(IPv6 *self, PyObject *other) {
-    uint64_t upper;
-    uint64_t lower;
-
-    if ( !PyObject_IsInstance(other, (PyObject*)&IPv6Type) ) {
+/* Check if two prefixes are contained within each other */
+static PyObject *IPv6_contains(IPv6 *self, PyObject *other)
+{
+    if (!PyObject_IsInstance(other, (PyObject*)&IPv6Type))
         Py_RETURN_FALSE;
-    }
 
-    upper = ((IPv6*)other)->upper & IPv6_netmask_upper(self->prefixlen);
-    lower = ((IPv6*)other)->lower & IPv6_netmask_lower(self->prefixlen);
+    unsigned long long resUpper = ((IPv6*)other)->upper & IPv6_netmaskUpperC(self->prefixlen);
+    unsigned long long resLower = ((IPv6*)other)->lower & IPv6_netmaskLowerC(self->prefixlen);
 
-    if ( upper == self->upper && lower == self->lower ) {
+    if (resUpper == self->upper && resLower == self->lower)
         Py_RETURN_TRUE;
-    }
 
     Py_RETURN_FALSE;
 }
@@ -901,32 +1037,33 @@ static PyObject *IPv6_contains(IPv6 *self, PyObject *other) {
 
 
 /*
- *  Prefix factory that initialises either an IPv4 or an IPv6 prefix based
- *  on provided arguments. If the IP string contains a : char then it's
- *  considered an IPv6 prefix. Otherwise we will try to initialise and return
- *  an IPv4 prefix.
- */
+    Prefix factory that intiaties either a IPv4 or a IPv6 prefix based
+    on provided arguments. If the ip string contains a : char then its considered
+    a IPv6 prefix. Otherwise we will try to intiate and return a IPv4 prefix.
+*/
 static PyObject *PrefixFactory(PyObject *self, PyObject *args, PyObject *kwds) {
     PyObject *obj = NULL;
+
     static char *kwlist[] = {"ip", "prefixlen", NULL};
     short preflen_arg = -1;
-    char *ip_arg = NULL;
 
-    if ( !PyArg_ParseTupleAndKeywords(args, kwds, "s|b", kwlist, &ip_arg,
-                &preflen_arg) ) {
-        PyErr_SetString(PyExc_ValueError, "Missing IP address argument");
+    char *ip_arg = NULL;
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "s|b", kwlist, &ip_arg, &preflen_arg)) {
+        PyErr_SetString(PyExc_ValueError, "Please provide the required arguments");
         return NULL;
     }
 
-    /*
-     * TODO can we make the getaddrinfo() call here, and then use the family
-     * from the resulting struct addrinfo to call the appropriate function?
-     * Still need to check for IPv4 address string formatting though to make
-     * sure it is a proper dotted quad.
-     */
+    // Check if the prefix is a IPv6
+    int version = 4;
+    for (int i = 0; i < strlen(ip_arg); i++) {
+        if (*(ip_arg+i) == ':') {
+            version = 6;
+            break;
+        }
+    }
 
-    /* Guess the address family of the prefix */
-    if ( index(ip_arg, ':') == NULL ) {
+    // Intiate the correct prefix type
+    if (version == 4) {
         obj = PyObject_Call((PyObject *) &IPv4Type, args, kwds);
     } else {
         obj = PyObject_Call((PyObject *) &IPv6Type, args, kwds);
@@ -935,31 +1072,25 @@ static PyObject *PrefixFactory(PyObject *self, PyObject *args, PyObject *kwds) {
     return obj;
 }
 
-
-/*
- * Register the types and the module.
- */
+// Register the types and the module
 PyMODINIT_FUNC PyInit_Prefix(void) {
-    PyObject* module;
+    PyObject* m;
 
-    if ( PyType_Ready(&IPv4Type) < 0 ) {
+    if (PyType_Ready(&IPv4Type) < 0)
         return NULL;
-    }
 
-    if ( PyType_Ready(&IPv6Type) < 0 ) {
+    if (PyType_Ready(&IPv6Type) < 0)
         return NULL;
-    }
 
-    module = PyModule_Create(&prefixmodule);
-    if ( module == NULL ) {
+    m = PyModule_Create(&prefixmodule);
+    if (m == NULL)
         return NULL;
-    }
 
     Py_INCREF(&IPv4Type);
-    PyModule_AddObject(module, "IPv4", (PyObject *)&IPv4Type);
+    PyModule_AddObject(m, "IPv4", (PyObject *)&IPv4Type);
 
     Py_INCREF(&IPv6Type);
-    PyModule_AddObject(module, "IPv6", (PyObject *)&IPv6Type);
-
-    return module;
+    PyModule_AddObject(m, "IPv6", (PyObject *)&IPv6Type);
+    return m;
 }
+

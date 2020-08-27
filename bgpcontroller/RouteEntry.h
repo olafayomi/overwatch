@@ -40,31 +40,32 @@ static PyTypeObject RouteEntryType;
 
 typedef struct {
     PyObject_HEAD;
+    // Origin of prefix
+    unsigned char origin;
 
-    /* Prefix that this route entry refers to */
+    // ASN of peer (32 bit field)
+    unsigned int peer;
+
+    // Prefix of route entry
     PyObject *prefix;
 
-    /* ASN of the peer that we received this route entry from */
-    uint32_t peer;
-
-    /* BGP preference for this route entry */
-    uint32_t preference;
-
-    /* AS Path, AS Set and Communities for this route entry, all optional */
-    uint32_t *as_path;
-    uint32_t *as_set;
-    uint32_t *communities;
-
-    /* Size of the AS Path, AS Set and Communities */
-    uint16_t as_path_size;
-    uint16_t as_set_size;
-    uint16_t communities_size;
-
-    /* BGP Origin for this route entry (IGP/EGP/INCOMPLETE) */
-    uint8_t origin;
-
-    /* Next hop to reach the given prefix */
+    // Next hop of route entry
     char *nexthop;
+
+    // Table of ASN numbers (32 bit each)
+    unsigned short as_path_size;
+    unsigned int *as_path;
+
+    // Table of ASN set number (32 bit each)
+    unsigned short as_set_size;
+    unsigned int *as_set;
+
+    // Preference of route (32 bit bgp field)
+    unsigned int preference;
+
+    // Table of communities 32 bit tuples
+    unsigned short communities_size;
+    unsigned int *communities;
 } RouteEntry;
 
 
@@ -72,13 +73,13 @@ typedef struct {
 // exposed externally (i.e. we can access them in python)
 
 
-/* ---- Python initialisation and cleaning functions ---- */
+/* ---- Python initiation and cleaning functions ---- */
 
 
 // Allocate new object
 static PyObject *re_new(PyTypeObject *type, PyObject *args, PyObject *kwds);
 
-// Initialisation method
+// Initiation method
 static int re_init(RouteEntry *self, PyObject *args, PyObject *kwds);
 
 // Cleanup method
@@ -87,10 +88,10 @@ static void re_dealloc(RouteEntry *self);
 
 /* ---- Cleaning methods and attribute initiation methods ---- */
 
-// Free memory allocations of a route entry object
-static void free_memory(RouteEntry *self);
+// Free memeory allocations of a route entry object
+static void free_memeory(RouteEntry * self);
 
-// Initialise and associate a new prefix object with a route entry
+// Inotoate and associate a new prefix object with a route entry
 static int init_prefix(RouteEntry *self, PyObject *prefix);
 
 
@@ -123,8 +124,12 @@ static PyObject *re_setstate(RouteEntry *self, PyObject *d);
 static int re_compare(RouteEntry *obj1, RouteEntry *obj2);
 
 // Check if two route entry tables are equal
-static int compare_lists(uint32_t *list1, uint32_t *list2,
-        uint16_t size1, uint16_t size2);
+static int table_equal(
+    unsigned int *tbl1, unsigned int *tbl2,
+    unsigned short tbl1_size, unsigned short tbl2_size);
+
+// Check if there is a difference between two sets (a - b)
+static int set_difference(PyObject *a, PyObject *b);
 
 
 /* ---- Table helper methods (internal use only) ---- */
@@ -164,12 +169,6 @@ static PyObject *re_remove_communities(RouteEntry *self, PyObject *com);
 // Set the nexthop of a route entry
 static PyObject *re_set_nexthop(RouteEntry *obj, PyObject *nexthop);
 
-// Save/load route entry into/from a buffer
-static PyObject *save_to_buffer(RouteEntry *self, PyObject *arg);
-static PyObject *save_to_buffer_impl(RouteEntry *self, Py_buffer *buffer);
-static PyObject *load_from_buffer(RouteEntry *self, PyObject *arg);
-static PyObject *load_from_buffer_impl(RouteEntry *self, Py_buffer *buffer);
-static PyObject *create_from_buffer(PyObject *cls, PyObject *arg);
 
 /* ---- Python module functions ---- */
 
@@ -177,7 +176,7 @@ static PyObject *create_from_buffer(PyObject *cls, PyObject *arg);
 // Get an as path announce string component (ExaBGP format)
 static PyObject *re_announce_as_path_str(RouteEntry *obj);
 
-// Get a community announce string component (ExaBGP format)
+// Get a community announce string componenet (ExaBGP format)
 static PyObject *re_announce_communities_str(RouteEntry *obj);
 
 
@@ -216,19 +215,13 @@ static PyMethodDef re_methods[] = {
      "Add elements to the as set of the route entry"},
     {"set_nexthop", (PyCFunction)re_set_nexthop, METH_O,
      "Update the nexthop attribute of a route entry"},
-    {"save_to_buffer", (PyCFunction)save_to_buffer, METH_O,
-     "Pack the route entry into a given buffer"},
-    {"load_from_buffer", (PyCFunction)load_from_buffer, METH_O,
-     "Unpack the route entry from a given buffer into an existing one"},
-    {"create_from_buffer", (PyCFunction)create_from_buffer, METH_O|METH_CLASS,
-     "Unpack the route entry from a given buffer and create a new one"},
 
     {"__deepcopy__", (PyCFunction)re_deepcopy, METH_O,
      "Perform a deep copy of a route entry object"},
     {"__getstate__", (PyCFunction)re_getstate, METH_NOARGS,
      "Retrieve the state dictionary for pickling"},
     {"__setstate__", (PyCFunction)re_setstate, METH_O,
-     "Restore an object from a state dictionary for unpickling"},
+     "Restore a object from a state dictionary for unpickling"},
     {NULL}  /* Sentinel */
 };
 
@@ -284,3 +277,4 @@ static PyModuleDef remodule = {
 };
 
 #endif /* ROUTEENTRY_H */
+
