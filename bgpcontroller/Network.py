@@ -28,8 +28,6 @@ from collections import defaultdict
 from multiprocessing import Process, Queue
 from queue import Empty
 from ctypes import cdll, byref, create_string_buffer
-import messages_pb2 as pb
-import pickle
 
 from pyospf import main as pyospf
 
