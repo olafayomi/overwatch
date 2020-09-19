@@ -27,6 +27,7 @@ import logging
 
 from BGPPeer import BGPPeer
 from SDNPeer import SDNPeer
+from BGPSpeaker import BGPSpeaker
 from RouteTable import RouteTable
 from PolicyObject import ACCEPT
 from RouteEntry import DEFAULT_LOCAL_PREF
@@ -47,15 +48,20 @@ class ConfigFactory(object):
         self.filters = []
         self.peers = []
         self.tables = []
+        self.bgpspeakers = []
         self.local_topology = []
 
         self.config_loader = ConfigLoader(configname)
+        self.grpc_port = self.config_loader.grpc_port
+        self.grpc_address = self.config_loader.grpc_address
 
         # Build the filters, tables and peers objects from the config file
         self._build_filters()
         self._build_tables(outgoing_control_queue)
-        self._build_peers(outgoing_exabgp_queue, outgoing_control_queue,
-                internal_command_queue)
+        self._build_speakers(outgoing_exabgp_queue, outgoing_control_queue,
+                             internal_command_queue)
+        #self._build_peers(outgoing_exabgp_queue, outgoing_control_queue,
+        #                  internal_command_queue, self.config_loader.peers)
 
         # Process the export to peers of the tables config section
         for table_name in self.config_loader.tables:
@@ -120,14 +126,16 @@ class ConfigFactory(object):
         self.filters = factory.build(self.config_loader.filters)
 
     def _build_peers(self, outgoing_exabgp_queue, outgoing_control_queue,
-            internal_command_queue):
+            internal_command_queue, peers_cfg):
         """
             Iterate through all peers defined in the config file constructing
             their object representations.
         """
-        for peer_name in self.config_loader.peers:
+        #for peer_name in self.config_loader.peers:
+        for peer_name in peers_cfg:
             # Retrieve the config section and retrieve the peer ASN
-            peer_cfg = self.config_loader.peers[peer_name]
+            #peer_cfg = self.config_loader.peers[peer_name]
+            peer_cfg = peers_cfg[peer_name]
             peerASN = self._translate_self_asn(peer_cfg["asn"])
 
             # Retrieve optional param attributes, if not defined set to default
@@ -234,6 +242,30 @@ class ConfigFactory(object):
             self._associate_filters(obj, table_cfg)
             self.tables.append(obj)
 
+    def _build_speakers(self, outgoing_exabgp_queue, outgoing_control_queue,
+                        internal_command_queue):
+        """
+            Build the BGP speaker objects from the configuration section
+        """
+        for speaker in self.config_loader.bgpspeakers:
+            # Retrieve the config section
+            speaker_cfg = self.config_loader.bgpspeakers[speaker]
+            peer_addrs = []
+            # Validate the fields
+            ConfigValidator.validate_type(speaker_cfg["address"], str, "address",
+                                          "BGP Speaker %s" % speaker)
+            ConfigValidator.validate_type(speaker_cfg["type"], str, "type",
+                                          "BGP Speaker %s" % speaker)
+            
+            self._build_peers(outgoing_exabgp_queue, outgoing_control_queue,
+                              internal_command_queue, speaker_cfg["peers"])
+            for peer_name in speaker_cfg["peers"]:
+                peer_addrs.append(speaker_cfg["peers"][peer_name]
+                                  ["address"])
+            obj = BGPSpeaker(speaker, speaker_cfg["address"], speaker_cfg["type"],
+                             peer_addrs,internal_command_queue, outgoing_control_queue)
+            self.bgpspeakers.append(obj)
+
     def _associate_filters(self, obj, cfg_section):
         """
             Associate import and export filters for a configuration section
@@ -298,7 +330,7 @@ class ConfigFactory(object):
     def local_routes(self):
         return self.config_loader.local_routes
 
-    def debug(self, peers=None, tables=None):
+    def debug(self, peers=None, tables=None, bgpspeakers=None):
         """
             Dump the values of a array of peers and tables
         """
@@ -306,6 +338,8 @@ class ConfigFactory(object):
             peers = self.peers
         if tables is None:
             tables = self.tables
+        if bgpspeakers is None:
+            bgpspeakers = self.bgpspeakers
 
         self.log.debug("---------------------------")
 
@@ -363,6 +397,9 @@ class ConfigFactory(object):
         self.log.debug("-----------------------------------")
 
 if __name__ == "__main__":
-    conf = ConfigFactory(None, None, None, "/scratch/bgpsdn/config.example.yaml")
+    #conf = ConfigFactory(None, None, None, "/scratch/bgpsdn/config.example.yaml")
+    conf = ConfigFactory(
+                None, None, None,
+                "/home/ubuntu/git-repos/overwatch/bgpcontroller/config.yaml")
     conf.debug()
 

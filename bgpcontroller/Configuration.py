@@ -23,9 +23,9 @@
 # @Author : Brendon Jones (Original Disaggregated Router)
 # @Author : Dimeji Fayomi
 
-
 import os.path
 import yaml
+
 
 class ConfigLoader(object):
     def __init__(self, conf_file="config.yaml"):
@@ -40,6 +40,8 @@ class ConfigLoader(object):
             config = yaml.safe_load(stream)
 
         self.asn = config["asn"]
+        self.grpc_port = config["grpc-port"]
+        self.grpc_address = config["grpc-address"]
 
         # Retrieve the local topology and local import routes config file paths
         # NOTE: all referenced files from the config will be loaded relative
@@ -51,24 +53,33 @@ class ConfigLoader(object):
                     topo_sec["static_file"] = self.relative_path(
                             topo_sec["static_file"])
 
-                    if not isinstance(topo_sec["static_file"], str) or not os.path.isfile(topo_sec["static_file"]):
-                        raise Exception("Config: Local topology file %s doesn't exist" % (topo_sec["static_file"]))
+                    if (not isinstance(topo_sec["static_file"], str) or
+                            not os.path.isfile(topo_sec["static_file"])):
+                        raise Exception("Config: Local topology file %s doesn't exist"
+                                        % (topo_sec["static_file"]))
 
         elif isinstance(self.local_topology, str):
             self.local_topology = self.relative_path(self.local_topology)
 
-            if not isinstance(self.local_topology, str) or not os.path.isfile(self.local_topology):
-                raise Exception("Config: Local topology file %s doesn't exist" % (self.local_topology))
+            if (not isinstance(self.local_topology, str) or
+                    not os.path.isfile(self.local_topology)):
+                raise Exception("Config: Local topology file %s doesn't exist"
+                                % (self.local_topology))
         else:
             raise Exception("Config: local_topology can either be a list or a string. Invalid type!")
 
         # Get the local route import file, peers, tables and filters sections
         self.local_routes = self.relative_path(config["local_routes"]) if "local_routes" in config else ""
 
-        if "peers" in config:
-            self.peers = config["peers"]
+        if "bgpspeakers" in config:
+            self.bgpspeakers = config["bgpspeakers"]
         else:
-            raise Exception("Config: No peers defined in file %s" % conf_file)
+            raise Exception("Config: No bgpspeakers defined in file %s" % conf_file)
+
+        #if "peers" in config:
+        #    self.peers = config["peers"]
+        #else:
+            #raise Exception("Config: No peers defined in file %s" % conf_file)
 
         if "tables" in config:
             self.tables = config["tables"]
@@ -77,6 +88,7 @@ class ConfigLoader(object):
 
         if "filters" in config:
             self.filters = config["filters"]
+
 
     def relative_path(self, filename):
         """
@@ -92,9 +104,12 @@ class ConfigLoader(object):
             peers, table and filters array. This method needs to be called
             once the config sections have been processed.
         """
-        del self.peers
+        
+        #if self.peers:
+        #    del self.peers
         del self.tables
         del self.filters
+        del self.bgpspeakers
         del self.local_topology
 
 
@@ -129,7 +144,7 @@ class ConfigValidator(object):
 
     @staticmethod
     def validate_list_type(field, expected_type, field_name, parent_name,
-            strict_list=True):
+                           strict_list=True):
         """
             Validate a list of items for a specific field type, if not valid
             an exception will be thrown.
@@ -137,17 +152,17 @@ class ConfigValidator(object):
         if isinstance(field, list):
             for item in field:
                 ConfigValidator.validate_type(item, expected_type,
-                        field_name, parent_name)
+                                              field_name, parent_name)
         elif strict_list is False:
             ConfigValidator.validate_type(field, expected_type,
-                    field_name, parent_name)
+                                          field_name, parent_name)
         else:
             raise Exception("Config: %s of %s has to be a list" % (
                     field_name, parent_name))
 
     @staticmethod
-    def extract_array_data (field, expected_type, field_name, parent_name,
-            strict_list=False):
+    def extract_array_data(field, expected_type, field_name, parent_name,
+                           strict_list=False):
         """
             Validate a fields type and retrieve the data as an array.
         """
@@ -159,11 +174,11 @@ class ConfigValidator(object):
         if isinstance(field, list):
             for item in field:
                 ConfigValidator.validate_type(item, expected_type,
-                        field_name, parent_name)
+                                              field_name, parent_name)
                 data.append(item)
         else:
             ConfigValidator.validate_type(field, expected_type,
-                        field_name, parent_name)
+                                          field_name, parent_name)
             data.append(field)
 
         return data

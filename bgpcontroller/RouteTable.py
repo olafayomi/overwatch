@@ -82,6 +82,7 @@ class RouteTable(PolicyObject):
         return None
 
     def _process_update_message(self, message):
+        self.log.info("DIMEJI_ROUTETABLE_DEBUG _process_update_message is %s" % message)
         peer = message.get("from")
         # clear all the routes we received from this peer
         self.routes[peer] = []
@@ -116,6 +117,7 @@ class RouteTable(PolicyObject):
             Update all export peers of this table with the table routes
         """
         self.log.debug("%s sending routes to peers", self.name)
+        self.log.info("DIMEJI_ROUTETABLE_DEBUG _update_peers for table :%s" % self.name)
         mark = time.time()
         for peer in self.export_peers:
             # Send the update to every peer in our table that needs it

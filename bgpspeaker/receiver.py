@@ -369,6 +369,33 @@ def exaBGPParser(jsonline, ctlrStub):
                     any_attrs.Pack(localprefattr)
                     pattrs.append(any_attrs)
 
+                if rattr == "as-path":
+                    aspath = attrs.AsPathAttribute()
+                    as_set = attrs.AsSegment()
+                    as_set.type = int(1)
+                    for num in value:
+                        as_set.numbers.append(int(num))
+                    aspath.segments.append(as_set)
+                    any_attrs = Any()
+                    any_attrs.Pack(aspath)
+                    pattrs.append(any_attrs)
+
+                if rattr == "community":
+                    community = attrs.CommunitiesAttribute()
+                    for clist in value:
+                        for num in clist:
+                            community.communities.append(int(num))
+                    any_attrs = Any()
+                    any_attrs.Pack(community)
+                    pattrs.append(any_attrs)
+
+                if rattr == "med":
+                    multi_exit = attrs.MultiExitDiscAttribute()
+                    multi_exit.med = int(value)
+                    any_attrs = Any()
+                    any_attrs.Pack(multi_exit)
+                    pattrs.append(any_attrs)
+
             time = Timestamp()
             ts = time.GetCurrentTime()
             msg = exabgp.ExaUpdate(local_as=local_as, peer_as=peer_as,
@@ -416,7 +443,15 @@ def exaBGPParser(jsonline, ctlrStub):
 
 
 def CreateStub():
-    channel = grpc.insecure_channel('localhost:50051')
+    channel = grpc.insecure_channel(target='localhost:50051',
+                                    options=[
+                                        ('grpc.keepalive_time_ms',60000),
+                                        ('grpc.keepalive_timeout_ms',30000),
+                                        ('grpc.keepalive_permit_without_calls',True),
+                                        ('grpc.http2.max_pings_without_data',0),
+                                        ('grpc.http2.min_time_between_pings_ms',60000),
+                                        ('grpc.http2.min_ping_interval_without_data_ms',30000)]
+                                   )
     try:
         grpc.channel_ready_future(channel).result(timeout=10)
     except grpc.FutureTimeoutError:

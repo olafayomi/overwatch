@@ -56,19 +56,46 @@ def FetchMsg(stub):
         nexthop = output['nexthop']['address']
         peer_as = output['peerAs']
         prefix = output['nlri']['prefix'][0]
-        attr_dict = dict(output['pattrs'][0])
-        ori = attr_dict['origin']
-        if ori == 0:
-            origin = 'igp'
-        elif ori == 1:
-            origin = 'egp'
-        else:
-            origin = 'incomplete'
-
         if message.msgtype == 0:
-            sys.stdout.write('neighbor ' + neigh + ' announce route '
-                             + prefix + ' next-hop '
-                             + nexthop + ' origin ' + origin + '\n')
+            pattrs = output['pattrs']
+            origin = 'incomplete'
+            aspath = " "
+            community = " "
+            for attr in pattrs:
+                if 'origin' in attr:
+                    ori = attr['origin']
+                    if ori == 0:
+                        origin = 'igp'
+                    elif ori == 1:
+                        origin = 'egp'
+                    elif ori == 2:
+                        origin = 'incomplete'
+                    elif ori == 3:
+                        origin = 'igp'
+                    else:
+                        origin = 'incomplete'
+                
+                if 'segments' in attr:
+                    as_set = []
+                    paths = attr['segments']
+                    for as_seg in attr['segments']:
+                        if 'numbers' in as_seg:
+                            as_set = as_set + as_seg['numbers']
+                            for asn in as_set:
+                                aspath = aspath +" "+str(asn)
+
+                if 'communities' in attr:
+                    for comm in attr['communities']:
+                        community = community +" "+str(comm)
+
+            announce = 'neighbor ' + neigh + ' announce route '\
+                + prefix + ' next-hop ' + nexthop + ' origin '\
+                + origin + ' as-path ['+ aspath +' ] community ['\
+                + community +' ]'
+            sys.stdout.write(announce + '\n')
+            #sys.stdout.write('neighbor ' + neigh + ' announce route '
+            #                 + prefix + ' next-hop '
+            #                 + nexthop + ' origin ' + origin + '\n')
             #sys.stdout.write('announce route ' + prefix + ' next-hop '
             #                 + nexthop + ' origin ' + origin + '\n')
             sys.stdout.flush()

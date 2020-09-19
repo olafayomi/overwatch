@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 # Copyright (c) 2020, WAND Network Research Group
 #                     Department of Computer Science
 #                     University of Waikato
@@ -68,7 +70,7 @@ class Peer(PolicyObject):
         # routes that we are currently exporting
         self.exported = set()
         # routes that were received and accepted from the peer
-        self.received = []
+        self.received = {}
         # routes received from all the tables that we are involved with
         self.adj_ribs_in = {}
 
@@ -187,6 +189,7 @@ class Peer(PolicyObject):
 
     def _get_filtered_routes(self):
         filtered_routes = []
+        self.log.info("DIMEJI_PEER_DEBUG: self.received.values() is %s" % self.received.values())
         for route in self.received.values():
             # work on a copy of the routes so the original unmodified routes
             # can be run through filters again later if required
@@ -194,6 +197,7 @@ class Peer(PolicyObject):
             if filtered is not None:
                 # add the new route to the list to be announced
                 filtered_routes.append(filtered)
+        self.log.info("DIMEJI_PEER_DEBUG: filtered_routes is %s" % filtered_routes)
         return filtered_routes
 
     def _update_tables_with_routes(self):
@@ -204,7 +208,9 @@ class Peer(PolicyObject):
                     "asn": self.asn,
                     "address": self.address,
                     }))
+        #self.log.info("DIMEJI_PEER_DEBUG _update_tables_with_routes message: %s" % str(message))
         for table in self.export_tables:
+            self.log.info("DIMEJI_PEER_DEBUG _update_tables_with_routes message: %s" % str(message))
             table.mailbox.put(message)
 
     def _process_table_update(self, message):
@@ -214,10 +220,11 @@ class Peer(PolicyObject):
             if self._can_import_prefix(prefix):
                 imp_routes[prefix] = message["routes"][prefix]
 
+        self.log.info("DIMEJI_PEER_DEBUG _process_table_update message: %s" % message)
         # No routes can be imported, stop the update process
         if len(imp_routes) == 0:
             return None
-
+        #self.log.info("DIMEJI_PEER_DEBUG _process_table_update message: %s" % message)
         # clobber the old routes from this table with the new lot
         self.adj_ribs_in[message["from"]] = imp_routes
         return self._do_export_routes
@@ -261,6 +268,11 @@ class Peer(PolicyObject):
     def _state_change(self, status):
         if self.active != status:
             self.active = status
+            # Make sure we remove routes that have been received from this peer
+            # so they don't linger around
+            if self.active is False:
+                self.received.clear()
+                self._update_tables_with_routes()
             # tell the controller the new status of this peer
             self.log.debug("%s signalling controller new status: %s" %
                     (self.name, status))
