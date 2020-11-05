@@ -95,3 +95,16 @@ class BrendonRouting(Routing):
 
         # return all the routes that are available for that minimum cost
         return [routes[i] for i, x in enumerate(costs) if x == min(costs)]
+
+#class PARouting(Routing):
+#    def __init(self, address):
+#        super(PARouting, self).__init__(address)
+#        self.log = logging.getLogger("PARouting")
+#
+#    def apply(self, all_routes):
+#        loc_rib  = {}
+#        for prefix, routes in all_routes.items():
+#
+#    def _get_perfaware_routes(self, routes):
+#        for route in routes:
+

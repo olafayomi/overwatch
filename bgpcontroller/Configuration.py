@@ -89,6 +89,19 @@ class ConfigLoader(object):
         if "filters" in config:
             self.filters = config["filters"]
 
+        if "performance-aware" in config:
+            performance_aware = config["performance-aware"]
+            if isinstance(performance_aware, dict) and \
+                (len(performance_aware) != 0):
+                for metric, prefixes in performance_aware.items():
+                    if metric == "bandwidth":
+                        self.bandwidth = prefixes
+
+                    if metric == "latency":
+                        self.latency = prefixes
+            else:
+                raise Exception("Config: No performance-aware metrics and prefixes defined in file %s" % conf_file)
+
 
     def relative_path(self, filename):
         """
@@ -111,6 +124,10 @@ class ConfigLoader(object):
         del self.filters
         del self.bgpspeakers
         del self.local_topology
+        if hasattr(self, 'latency'):
+            del self.latency
+        if hasattr(self, 'bandwidth'):
+            del self.bandwidth
 
 
 class ConfigValidator(object):

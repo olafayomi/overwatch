@@ -35,11 +35,11 @@ class BGPPeer(Peer):
             internal_command_queue,
             preference=DEFAULT_LOCAL_PREF,
             default_import=ACCEPT,
-            default_export=ACCEPT):
+            default_export=ACCEPT,par=False):
 
         super(BGPPeer, self).__init__(name, asn, address, control_queue,
                 internal_command_queue, preference, default_import,
-                default_export)
+                default_export,par)
 
         self.log = logging.getLogger("BGPPeer")
         self.out_queue = outgoing_queue
@@ -209,7 +209,7 @@ class BGPPeer(Peer):
         """
         #prefixes = update["withdraw"][family]
         prefixes = update["withdraw"]["nlri"]
-        self.log.info("DIMEJI_DEBUG_BGPPEER _process_withdraw_prefixes: %s" %prefixes)
+        #self.log.info("DIMEJI_DEBUG_BGPPEER _process_withdraw_prefixes: %s" %prefixes)
 
         empty = []
         for withdrawn in prefixes:
@@ -246,7 +246,7 @@ class BGPPeer(Peer):
 
         #if "attribute" not in update:
         if "attribute" not in announce:
-            self.log.info("DIMEJI_DEBUG_BGPPEER _process_announce_prefixes where is the route ? %s" % update)
+            #self.log.info("DIMEJI_DEBUG_BGPPEER _process_announce_prefixes where is the route ? %s" % update)
             return False
         
         #as_path = update["attribute"].get("as-path", [])
@@ -263,7 +263,7 @@ class BGPPeer(Peer):
         prefixes = announce["nlri"]
         nexthop = announce["nexthop"]
         preference = announce["attribute"].get("local-preference", self.preference)
-        self.log.info("DIMEJI_DEBUG_BGPPEER _process_announce_prefixes as_path is %s" % as_path)
+        #self.log.info("DIMEJI_DEBUG_BGPPEER _process_announce_prefixes as_path is %s" % as_path)
         for pfx in prefixes:
             route = RouteEntry(origin, self.asn,
                     str(pfx), str(nexthop), as_path, as_set,
@@ -282,7 +282,7 @@ class BGPPeer(Peer):
         #        if self.filter_import_route(route):
         #            self.received.append(route)
         #return len(announce) > 0
-        #self.log.info("DIMEJI_DEBUG_BGPPeer _process_announce_prefixes self.received is %s" % self.received)
+        self.log.info("DIMEJI_DEBUG_BGPPeer _process_announce_prefixes self.received is %s" % self.received)
         return len(prefixes) > 0
 
     def _process_bgp_update_section(self, update, section_name, func):
@@ -323,7 +323,7 @@ class BGPPeer(Peer):
         # XXX: If the peer has just started up (no negotiated message) we will
         # not import any prefixes. When the negotiated message is received we
         # will re-ask the tables for routes sending a reload command.
-        self.log.info("DIMEJI_BGPPEER_DEBUG: _can_import_prefix is %s" % prefix)
+        #self.log.info("DIMEJI_BGPPEER_DEBUG: _can_import_prefix is %s" % prefix)
         fam = self._afi_safi_to_str(prefix.afi(), prefix.safi())
         family = fam.split(" ")
         for afi, safi in self.afi_safi:

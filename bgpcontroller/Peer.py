@@ -29,13 +29,19 @@ from abc import abstractmethod
 from RouteEntry import RouteEntry, DEFAULT_LOCAL_PREF
 from PolicyObject import PolicyObject, ACCEPT
 from Routing import BGPDefaultRouting
-
+import copy
+import grpc
+import json
+import srv6_explicit_path_pb2_grpc
+import srv6_explicit_path_pb2
+import time
 class Peer(PolicyObject):
     def __init__(self, name, asn, address, control_queue,
             internal_command_queue,
             preference=DEFAULT_LOCAL_PREF,
             default_import=ACCEPT,
-            default_export=ACCEPT):
+            default_export=ACCEPT,
+            par=False):
 
         super(Peer, self).__init__(name, control_queue, default_import,
                 default_export)
@@ -52,6 +58,9 @@ class Peer(PolicyObject):
         self.export_tables = []
         self.active = False
         self.degraded = 0
+        self.enable_PAR = par
+        self.PAR_prefixes = []
+        self.PARModules = []
 
         # XXX: List of tables we are receive routes from (needed to
         # send reload message to correct tables)
@@ -62,6 +71,7 @@ class Peer(PolicyObject):
             "update": self._process_table_update,
             "debug": self._process_debug_message,
             "status": self._process_status_message,
+            "par": self._process_par_update,
 
         })
 
@@ -73,6 +83,12 @@ class Peer(PolicyObject):
         self.received = {}
         # routes received from all the tables that we are involved with
         self.adj_ribs_in = {}
+        # routes received from all the tables that we are involved with 
+        # before processing for PAR routes 
+        self.pre_adj_ribs_in = {}
+
+        # PAR routes
+        self.par_ribs_in = {}
 
 
     def add_import_tables(self, tables):
@@ -89,6 +105,7 @@ class Peer(PolicyObject):
         pass
 
     def _do_export_routes(self, refresh=False):
+
         # if the peer isn't connected then don't bother trying to export routes
         if self.active is False:
             self.log.debug("Peer %s is not connected, not exporting routes" %
@@ -107,12 +124,44 @@ class Peer(PolicyObject):
             for (prefix, route) in self.exported:
                 self._do_announce(prefix, route)
             return
+        #self.log.info("DIMEJI_DEBUG_PEER _do_export_routes printing self.adj_ribs_in for %s" %self.name)
+        #for table, routes in self.adj_ribs_in.items():
+        #    self.log.info("DIMEJI_DEBUG_PEER_YYYYYYYYYY _do_export_routes TABLE: %s, ROUTES: %s" %(table, routes))
 
+        if self.enable_PAR is True:
+            #self.log.info("DIMEJI_DEBUG_PEER_YYSYDYDSYSYS  _do_export_routes requesting par-update peer: %s" %self.name)
+            #for module in self.PARModules:
+            #    self.log.info("DIMEJI_DEBUG_PEER_DYDGDSKJHDKHJDDD _do_export_routes      %s          Sending message to PAR Module: %s" %(self.name, module.name))
+            #    if module.name not in self.adj_ribs_in:
+            #        self.adj_ribs_in[module.name] = {}
+                    #message = (("get", {
+                    #            "from": self.address,
+                    #            "routes": self.adj_ribs_in,
+                    #            }))
+                    #module.mailbox.put(message)
+                    #self.log.info("DIMEJI_DEBUG_PEER_DYDGDSKJHDKHJDDD _do_export_routes      %s          Sent message to PAR Module: %s" %(self.name, module.name))
+                    #return
+            par_table_name = []
+            for module in self.PARModules:
+                par_table_name.append(module.name)
+            self.pre_adj_ribs_in = copy.deepcopy(self.adj_ribs_in)
+            for table, routes in self.adj_ribs_in.items():
+                if table not in par_table_name:
+                    for prefix in self.PAR_prefixes:
+                        if prefix in routes:
+                            #self.log.info("DIMEJI_DEBUG_PEER_JDHGDDH _do_export_routes  %s   Popping %s routes from other tables" %(self.name, str(prefix)))
+                            routes.pop(prefix)
+            
         # XXX massage this to list of tuples because that's what old code wants
         # XXX removing this would save a ton of memory!
         # XXX what is this actually doing and why? going from dict of
         # prefix:routes to tuple prefix,route?
-        export_routes = self.filter_export_routes(self.adj_ribs_in)
+        if self.enable_PAR is True:
+            adj_export_routes = self.filter_export_routes(self.adj_ribs_in)
+            par_export_routes = self.filter_export_routes(self.par_ribs_in)
+            export_routes = {**par_export_routes, **adj_export_routes}
+        else:
+            export_routes = self.filter_export_routes(self.adj_ribs_in)
 
         # at this point we have all the routes that might be relevant to us
         # and we need to figure out which ones we actually want to advertise
@@ -124,7 +173,12 @@ class Peer(PolicyObject):
             # ROUTES.
             for prefix, route in self.exported:
                 self._do_withdraw(prefix, route)
-
+                message = (("remove", {
+                            "route": route,
+                            "prefix": prefix,
+                          }))
+                for parmodule in self.PARModules:
+                    parmodule.mailbox.put(message)
             self.exported.clear()
             return
 
@@ -134,6 +188,7 @@ class Peer(PolicyObject):
                 if self.degraded:
                     # add communities if we are degraded in some way
                     route.add_communities([(self.asn, self.degraded)])
+                
                 full_routes.append((prefix, route))
         full_routes = set(full_routes)
         del export_routes
@@ -141,10 +196,40 @@ class Peer(PolicyObject):
         # withdraw all the routes that were advertised but no longer are
         for prefix, route in self.exported.difference(full_routes):
             self._do_withdraw(prefix, route)
+            # XXX: I need to fix this... Routes that are still valid should not be removed
+            #       from the PAR module list
+            if prefix in self.PAR_prefixes:
+                self.log.info("DIMEJI_DEBUG_PEER _do_export_routes length of pre_adj_ribs_in is %s\n\n\n" %len(self.pre_adj_ribs_in))
+                rib_len = len(self.pre_adj_ribs_in)
+                del_route = []
+                count = 0
+                for table, routes in self.pre_adj_ribs_in.items():
+                    if prefix not in routes:
+                        rib_len -= 1
+                        continue
 
+                    if route not in routes[prefix]:
+                        count += 1
+                        del_route.append(count)
+                if rib_len != len(del_route):
+                    message = (("remove", {
+                                "route": route,
+                                "prefix": prefix,
+                              }))
+                    for parmodule in self.PARModules:
+                        self.log.debug("PEER WEIRDNESS DEBUG PAR route delete XXXX Peer %s removing route: %s in _do_export_routes\n\n" %(self.name, route))
+                        parmodule.mailbox.put(message)
+        
         # announce all the routes that haven't been advertised before
         for prefix, route in full_routes.difference(self.exported):
             self._do_announce(prefix, route)
+
+            if prefix in self.PAR_prefixes:
+                addroute = { prefix: [route] }
+                message = (("add", { "routes": addroute }))
+                for parmodule in self.PARModules:
+                    self.log.debug("PEER DIMEJI DEBUG WEIRDNESS XXXXX _do_export peer %s adding routes to PAR" %(self.name))
+                    parmodule.mailbox.put(message)
 
         # record the routes we last exported so we can check for changes
         self.exported = full_routes
@@ -161,11 +246,32 @@ class Peer(PolicyObject):
         """
         return True
 
+    def _do_export_pa_routes(self, refresh=False):
+        pass
+        #performance_aware_routes(self, adj_ribs_in):
+        #if self.active is False:
+        #    self.log.debug("Peer %s is not connected, not exporting performance-aware routes" %
+        #                   self.name)
+        #    return
+
+        ## If there is no topology then don't bother trying to export PAR routes
+        #if self.routing.topology is None:
+        #    self.log.debug("Peer %s is missing topology, not exporting routes" %
+        #                   self.name)
+        #    return
+
+        #if refresh:
+
+        #    for (prefix, route) in self.exported:
+
+
+
     def filter_export_routes(self, export_routes):
         filtered_routes = defaultdict(list)
         # unpack the routes from different tables
         for table in export_routes.values():
             for prefix, routes in table.items():
+                #self.log.info("DIMEJI_DEBUG_PEER filter_export_routes printing routes in export_routes: %s and length is %s " % (routes, len(routes)))
                 for route in routes:
                     # exclude duplicates - a route might arrive from many tables
                     if route not in filtered_routes[prefix]:
@@ -189,7 +295,7 @@ class Peer(PolicyObject):
 
     def _get_filtered_routes(self):
         filtered_routes = []
-        self.log.info("DIMEJI_PEER_DEBUG: self.received.values() is %s" % self.received.values())
+        #self.log.info("DIMEJI_PEER_DEBUG: self.received.values() is %s" % self.received.values())
         for route in self.received.values():
             # work on a copy of the routes so the original unmodified routes
             # can be run through filters again later if required
@@ -197,7 +303,7 @@ class Peer(PolicyObject):
             if filtered is not None:
                 # add the new route to the list to be announced
                 filtered_routes.append(filtered)
-        self.log.info("DIMEJI_PEER_DEBUG: filtered_routes is %s" % filtered_routes)
+        #self.log.info("DIMEJI_PEER_DEBUG: filtered_routes is %s" % filtered_routes)
         return filtered_routes
 
     def _update_tables_with_routes(self):
@@ -210,23 +316,63 @@ class Peer(PolicyObject):
                     }))
         #self.log.info("DIMEJI_PEER_DEBUG _update_tables_with_routes message: %s" % str(message))
         for table in self.export_tables:
-            self.log.info("DIMEJI_PEER_DEBUG _update_tables_with_routes message: %s" % str(message))
+            #self.log.info("DIMEJI_PEER_DEBUG _update_tables_with_routes message: %s" % str(message))
             table.mailbox.put(message)
 
     def _process_table_update(self, message):
         # XXX: check if we can export this prefix, otherwise skip checks
         imp_routes = {}
         for prefix in message["routes"]:
+            #self.log.info("DIMEJI_DEBUG_PEER _process_table_update: prefix : %s is type %s" % (prefix,type(prefix)))
+
             if self._can_import_prefix(prefix):
                 imp_routes[prefix] = message["routes"][prefix]
 
-        self.log.info("DIMEJI_PEER_DEBUG _process_table_update message: %s" % message)
+        #self.log.info("DIMEJI_PEER_DEBUG _process_table_update message: %s" % message)
         # No routes can be imported, stop the update process
         if len(imp_routes) == 0:
             return None
         #self.log.info("DIMEJI_PEER_DEBUG _process_table_update message: %s" % message)
         # clobber the old routes from this table with the new lot
         self.adj_ribs_in[message["from"]] = imp_routes
+        message = (("add", {
+                     "routes": imp_routes
+                     }))
+        for parmodule in self.PARModules:
+            self.log.debug("PEER DIMEJI WEIRDNESS DEBUG: Peer %s is adding route to parmodule in _process_table_update " %(self.name))
+            parmodule.mailbox.put(message)
+
+        if self.enable_PAR is True:
+            #self.log.info("DIMEJI_DEBUG_PEER_YYSYDYDSYSYS _process_table_update requesting par-update peer: %s" %self.name)
+            for module in self.PARModules:
+                #self.log.info("DIMEJI_DEBUG_PEER_DYDGDSKJHDKHJDDD _do_export_routes      %s          Sending message to PAR Module: %s" %(self.name, module.name))
+                #if module.name not in self.adj_ribs_in:
+                #    self.adj_ribs_in[module.name] = {}
+                message = (("get", {
+                            "from": self.address,
+                            "routes": self.adj_ribs_in,
+                          }))
+                module.mailbox.put(message)
+                #self.log.info("DIMEJI_DEBUG_PEER_DYDGDSKJHDKHJDDD _process_table_update      %s          Sent message to PAR Module: %s" %(self.name, module.name))
+                
+        self.pre_adj_ribs_in = copy.deepcopy(self.adj_ribs_in)
+        return self._do_export_routes
+
+    def _process_par_update(self, message):
+        # XXX: check if we can export this prefix, otherwise skip checks
+        imp_routes = {}
+        for prefix in message["routes"]: 
+           # self.log.info("DIMEJI_DEBUG_PEER _process_par_update: prefix : %s is type %s" % (prefix,type(prefix)))
+
+            if self._can_import_prefix(prefix):
+                imp_routes[prefix] = message["routes"][prefix]
+
+        if len(imp_routes) == 0:
+            return None
+        
+        #self.log.info("DIMEJI_PEER_DEBUG _process_par_update message: %s" % message)
+        self.par_ribs_in[message["type"]] = imp_routes
+        
         return self._do_export_routes
 
     # XXX topology messages are a pickled data structure wrapped in a protobuf
@@ -239,6 +385,7 @@ class Peer(PolicyObject):
         self.routing.set_topology(message)
 
         # re-evaluate what we are exporting based on the new topology
+        # XXX Todo: re-evaluate PAR routes too based on new topology.
         if len(self.adj_ribs_in) > 0:
             return self._do_export_routes
         return None
@@ -272,6 +419,10 @@ class Peer(PolicyObject):
             # so they don't linger around
             if self.active is False:
                 self.received.clear()
+                #for prefix, route in self.exported:
+                #    self._do_withdraw(prefix, route)
+                # Check if this makes the withdrawal of routes any faster!!!
+                self.exported.clear()
                 self._update_tables_with_routes()
             # tell the controller the new status of this peer
             self.log.debug("%s signalling controller new status: %s" %
@@ -293,3 +444,6 @@ class Peer(PolicyObject):
         for table in self.import_tables:
             table.mailbox.put(message)
 
+    def get_grpc_session(self, address, port):
+        channel = grpc.insecure_channel("%s:%s" %(address, port))
+        return srv6_explicit_path_pb2_grpc.SRv6ExplicitPathStub(channel), channel

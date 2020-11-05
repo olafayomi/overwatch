@@ -1,6 +1,7 @@
 #asn: 38022
 asn: 64496
 grpc-address: '127.0.0.1'
+#grpc-address: '192.168.122.43'
 grpc-port: 50051
 bgpspeakers:
     hlz-uow-1:
@@ -11,6 +12,9 @@ bgpspeakers:
                 type: 'bgp'
                 asn: 64496
                 address: '192.168.122.172'
+                preference: 300
+                enable-par: True
+                dp-grpc: 50055
                 #default_import: False
                 #default_export: True
                 #filters:
@@ -19,140 +23,99 @@ bgpspeakers:
                 tables:
                     - 'internet-and-sxt'
                     - 'reannz'
+                    
             vuw:
                 type: 'bgp'
                 asn:  64496
                 #default_import: False
                 #default_export: True
                 address: '192.168.122.78'
+                #enable-par: True
+                preference: 200
                 #filters:
                 #    import:
-                #- 'VUW import'
+                #        - 'Filter AS64498'
                 tables:
                     - 'internet-and-sxt'
                     - 'reannz'
-    #hlz-uow-2:
-    #     address: '192.168.122.44'
-    #     type: 'gobgp'
-    #     peers:
-    #         tait:
-    #              type: 'bgp'
-    #              asn: 64496
-    #              default_import: False
-    #              address: '192.168.122.122'
-    #              filters:
-    #                  import:
-    #                      - 'TAIT import'
-    #              tables:
-    #                  - 'internet-and-sxt'
-    #                  - 'reannz'
-    #         uoa:
-    #             type: 'bgp'
-    #             asn: 64496
-    #             default_import: False
-    #             address: '192.168.122.103'
-    #             filters:
-    #                 import:
-    #                     - 'UOA import'
-    #             tables:
-    #                 - 'internet-and-sxt'
-    #                 - 'reannz'
-#peers:
-        #    uow:
-        #        type: 'bgp'
-        #        asn: 681
-        #        address: '192.168.122.101'
-        #        default_import: False
-        #        aggregate_prefix:
-        #            - '0.0.0.0/0'
-        #        filters:
-        #            import:
-        #                - 'UOW import'
-        #        tables:
-        #            - 'internet-and-sxt'
-        #            - 'reannz'
-        #toit:
-        #     type: 'bgp'
-        #     asn: 55524
-        #     address: '192.168.122.102'
-        #     default_import: False
-        #     filters:
-        #         import:
-        #             - 'TOIT import'
-        #         tables:
-        #             - 'internet-and-sxt'
-        #             - 'reannz'
-        #       vuw:
-        #           type: 'bgp'
-        #           asn: 23905
-        #           address: '192.168.122.103'
-        #           default_import: False
-        #           filters:
-        #               import:
-        #                   - 'VUW import'
-        #           tables:
-        #               - 'internet-and-sxt'
-        #               - 'reannz'
-        #    uoa:
-        #        type: 'bgp'
-        #        asn: 9431
-        #        address: '192.168.122.104'
-        #        default_import: False
-        #        filters:
-        #            import:
-        #                - 'UOA import'
-        #        tables:
-        #            - 'internet-and-sxt'
-        #            - 'reannz'
-        #vocus:
-        #      type: 'bgp'
-        #      asn: 4826
-        #      address: '192.168.122.105'
-        #      default_import: False
-        #      filters:
-        #           -    import:
-        #           - 'VOCUS import'
-        #      tables:
-        #           - 'internet'
-        #           - 'internet-and-sxt'
-        #           - 'domestic'
-        #ape:#  vocu
-        #  vocutype: 'bgp'
-        #  vocuasn: 9560
-        #  vocuaddress: '192.168.122.106'
-        #  vocudefault_import: False
-        #  vocufilters:
-        #  vocu    import:
-        #  vocu        - 'APE import'
-        #  vocutables:
-        #  vocu    - 'internet'
-        #  vocu    - 'internet-and-sxt'
-        #  vocu    - 'domestic'
-        #aarn#  vocuet:
-        #  vocutype: 'bgp'
-        #  vocuasn: 7575
-        #  vocuaddress: '192.168.122.107'
-        #  vocudefault_import: False
-        #  vocufilters:
-        #  vocu    import:
-        #  vocu        - 'AARNET import'
-        #  vocutables:
-        #  vocu    - 'internet'
-        #  vocu    - 'internet-and-sxt'
-
+                
+                #hlz-uow-2:
+            #address: '192.168.122.43'
+        #type: 'exabgp'
+        #peers:
+            uoa:
+                type: 'bgp'
+                asn: 64496
+                address: '192.168.122.32'
+                tables:
+                    - 'domestic'
+                    - 'internet-and-sxt'
+                    - 'reannz'
+                    - 'slowpath'
+            tait:
+                 type: 'bgp'
+                 asn: 64496
+                 address: '192.168.122.34'
+                 tables:
+                     - 'internet-and-sxt'
+                     - 'reannz'
+                     - 'gigafast'
+            vocus:
+              type: 'bgp'
+              asn: 64496
+              address: '192.168.122.36'
+              tables:
+                  - 'internet-and-sxt'
+                  - 'internet'
+                  - 'reannz'
+                    #- 'gigafast'
+#### Performance Aware Routing #####
+performance-aware:
+        #latency:
+            #- '45.2.1.0/24'
+    bandwidth:
+            #- '100.1.0.0/24'
+        - '45.2.1.0/24'
+          #- '2001:df23::/48'
 #### INTERNET TABLES ####
 tables:
+    gigafast:
+        default_import: True
+        aggregate_prefix:
+            - '170.7.128.0/17'
+        export_peers:
+            - 'vuw'
+        filters:
+            import:
+                - 'Filter AS64497'
+                - 'Filter AS64497 prefix'
+            export:
+                - 'AS prepend OUT filter'
+
+    slowpath:
+        default_import: True
+        aggregate_prefix:
+            - '180.7.128.0/17'
+        export_peers:
+            - 'uow'
+        filters:
+            import:
+                - 'Filter AS64498'
+            export:
+                - 'AS prepend OUT filter'
+
     internet:
         #default_import: False
         default_import: True
         #default_export: True
         aggregate_prefix:
             - '163.7.128.0/17'
+                #- '2001:df25::/48'
         export_peers:
             - 'vuw'
             - 'uow'
-              #- 'tait'
-              #- 'uoa'
+            - 'tait'
+            - 'uoa'
         filters:
             import:
                 - 'Internet IN filter'
@@ -165,11 +128,13 @@ tables:
         #default_export: True
         aggregate_prefix:
             - '163.7.128.0/17'
+                #- '2001:df25::/48'
         export_peers:
             - 'uow'
-              #- 'uoa'
+            - 'uoa'
             - 'vuw'
-              #- 'tait'
+            - 'tait'
+            - 'vocus'
         filters:
             import:
                 - 'Internet/SXT IN filter'
@@ -182,14 +147,15 @@ tables:
         #default_export: True
         aggregate_prefix:
             - '163.7.128.0/17'
+                #- '2001:df25::/48'
         export_peers:
-                #- 'vocus'
+            - 'vocus'
               #- 'ape'
               #- 'aarnet'
             - 'vuw'
             - 'uow'
-              #- 'uoa'
-              #- 'tait'
+            - 'uoa'
+            - 'tait'
         filters:
             import:
                 - 'REANNZ IN filter'
@@ -202,14 +168,16 @@ tables:
         #default_export: True
         aggregate_prefix:
             - '163.7.128.0/17'
+            #- '2001:df25::/48'
         export_peers:
             - 'uow'
+                  #- 'vocus'
         filters:
             import:
                 - 'Domestic IN filter'
             export:
                 - 'AS prepend OUT filter'
-
+    
 filters:
     - name: 'UOW import'
       onmatch: 'ACCEPT'
@@ -288,6 +256,29 @@ filters:
                 - 9560
                 - 7575
                   #- 64496
+     
+    - name: 'Filter AS64497'
+      onmatch: 'REJECT'
+      rules:
+          - type: 'PeerFilter'
+            match:
+                - 64497
+
+    - name: 'Filter AS64498'
+      onmatch: 'REJECT'
+      rules:
+          - type: 'PeerFilter'
+            match:
+                - 64498
+
+    - name: 'Filter AS64497 prefix'
+      onmatch: 'REJECT'
+      rules:
+          - type: 'PrefixFilter'
+            match:
+                - '100.1.1.0/24'
+                - '12.64.4.96/30+'
+                - '14.64.4.96/30+'
 
     - name: 'Internet/SXT IN filter'
       rules:
@@ -301,6 +292,7 @@ filters:
                 - 4826
                 - 9560
                 - 7575
+                  #- 64498
                   #- 64496
 
     - name: 'REANNZ IN filter'
@@ -313,7 +305,7 @@ filters:
                 - 23905
                 - 9431
                 - 55524
-                  #- 64496
+                - 64496
 
     - name: 'Domestic IN filter'
       onmatch: 'ACCEPT'
@@ -323,7 +315,7 @@ filters:
                 - 38022
                 - 4826
                 - 9560
-                  #- 64496
+                - 64496
 
 local_routes: "internal.csv"
 

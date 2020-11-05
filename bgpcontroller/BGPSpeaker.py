@@ -137,21 +137,21 @@ class BGPSpeaker(Process):
             pattrs = message["pattrs"]
             fam = message["family"]
             for attr in pattrs:
-                self.log.info("DIMEJI_DEBUG_BGPSPEAKER _process_receive_update all attributes: %s" % attr)
+                #self.log.info("DIMEJI_DEBUG_BGPSPEAKER _process_receive_update all attributes: %s" % attr)
                 if 'localPref' in attr:
-                    self.log.info("DIMEJI_DEBUG_BGPSPEAKER _process_receive_update Local-preference is %s" % attr['localPref'])
+                    #self.log.info("DIMEJI_DEBUG_BGPSPEAKER _process_receive_update Local-preference is %s" % attr['localPref'])
                     attribute["local-preference"] = attr['localPref']
 
                 if 'origin' in attr:
-                    self.log.info("DIMEJI_DEBUG_BGPSPEAKER _process_receive_update Origin is %s" % attr['origin'])
+                    #self.log.info("DIMEJI_DEBUG_BGPSPEAKER _process_receive_update Origin is %s" % attr['origin'])
                     attribute["origin"] = attr['origin']
 
                 if 'communities' in attr:
-                    self.log.info("DIMEJI_DEBUG_BGPSPEAKER _process_receive_update Communities is %s" % attr['communities'])
+                    #self.log.info("DIMEJI_DEBUG_BGPSPEAKER _process_receive_update Communities is %s" % attr['communities'])
                     attribute["community"] = attr['communities']
 
                 if 'segments' in attr:
-                    self.log.info("DIMEJI_DEBUG_BGPSPEAKER _process_recieve_update AS_PATH is %s" % attr['segments'])
+                    #self.log.info("DIMEJI_DEBUG_BGPSPEAKER _process_recieve_update AS_PATH is %s" % attr['segments'])
                     as_set = []
                     for as_seg in attr['segments']:
                         as_set = as_set + as_seg['numbers']
@@ -422,6 +422,9 @@ class BGPSpeaker(Process):
         return
 
     def _process_send_announcement(self, message):
+        if message["peer"] not in self.peers:
+            return
+
         bgpmsg = exabgp.ControllerToBGP()
         bgpmsg.peer_as = message["asn"]
         bgpmsg.neighbor_address = message["peer"]
@@ -457,8 +460,8 @@ class BGPSpeaker(Process):
             as_seg.type = int(1)
             paths = message["route"]["aspath"]
             
-            #self.log.info("DIMEJI_DEBUG_BGPSPEAKER _process_send_announcement paths is %s" % paths)
-            #self.log.info("DIMEJI_DEBUG_BGPSPEAKER _process_send_announcemnt paths is type %s" % type(paths))
+            self.log.info("DIMEJI_DEBUG_BGPSPEAKER _process_send_announcement paths is %s" % paths)
+            self.log.info("DIMEJI_DEBUG_BGPSPEAKER _process_send_announcemnt paths is type %s" % type(paths))
           
             for asn in paths:
                 as_seg.numbers.append(int(asn))
@@ -470,8 +473,8 @@ class BGPSpeaker(Process):
             anycomm = Any()
             commattr = attrs.CommunitiesAttribute()
             communities = message["route"]["communities"]
-            #self.log.info("DIMEJI_DEBUG_BGPSPEAKER _process_send_announcement communities is %s" % communities)
-            #self.log.info("DIMEJI_DEBUG_BGPSPEAKER _process_send_announcement communities is type %s" % type(communities))
+            self.log.info("DIMEJI_DEBUG_BGPSPEAKER _process_send_announcement communities is %s" % communities)
+            self.log.info("DIMEJI_DEBUG_BGPSPEAKER _process_send_announcement communities is type %s" % type(communities))
             if communities is not None:
                 for community in communities:
                     for num in community:
@@ -482,6 +485,8 @@ class BGPSpeaker(Process):
         return
 
     def _process_send_withdrawal(self, message):
+        if message["peer"] not in self.peers:
+            return
         bgpmsg = exabgp.ControllerToBGP()
         bgpmsg.peer_as = message["asn"]
         bgpmsg.neighbor_address = message["peer"]

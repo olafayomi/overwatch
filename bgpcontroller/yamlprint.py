@@ -20,5 +20,7 @@ if __name__ == '__main__':
         print("\n")
         for peer in speaker_cfg["peers"]:
             peer_dict = speaker_cfg["peers"][peer]
-            print(peer_dict)
-
+            if "enable-par" in peer_dict:
+                print(peer_dict)
+    if "performance-aware" in config:
+        print(config["performance-aware"])

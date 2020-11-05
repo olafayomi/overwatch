@@ -82,7 +82,7 @@ class RouteTable(PolicyObject):
         return None
 
     def _process_update_message(self, message):
-        self.log.info("DIMEJI_ROUTETABLE_DEBUG _process_update_message is %s" % message)
+        #self.log.info("DIMEJI_ROUTETABLE_DEBUG _process_update_message is %s" % message)
         peer = message.get("from")
         # clear all the routes we received from this peer
         self.routes[peer] = []
@@ -94,7 +94,9 @@ class RouteTable(PolicyObject):
             # routes from a table are a dictionary of lists
             for routes in message["routes"].values():
                 self._try_import_routes(self.routes[peer], routes)
-
+        #self.log.info("DIMEJI_ROUTETABLE_DEBUG _process_update_message print all routes in table:\n")
+        #for peer, routes in self.routes.items():
+        #    self.log.info("DIMEJI_ROUTETABLE_ROUTES_XXXX Peer: %s, Route: %s" %(peer, routes))
         # update all the peers with the new routes we received, and flag
         # the peer as the source of the update so the table doesn't send
         # a pointless update back. If multiple peers are updated then all
@@ -117,7 +119,7 @@ class RouteTable(PolicyObject):
             Update all export peers of this table with the table routes
         """
         self.log.debug("%s sending routes to peers", self.name)
-        self.log.info("DIMEJI_ROUTETABLE_DEBUG _update_peers for table :%s" % self.name)
+        #self.log.info("DIMEJI_ROUTETABLE_DEBUG _update_peers for table :%s" % self.name)
         mark = time.time()
         for peer in self.export_peers:
             # Send the update to every peer in our table that needs it

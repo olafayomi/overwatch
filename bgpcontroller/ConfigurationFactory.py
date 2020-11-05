@@ -33,6 +33,7 @@ from PolicyObject import ACCEPT
 from RouteEntry import DEFAULT_LOCAL_PREF
 from Configuration import ConfigLoader, ConfigValidator
 from ConfigurationFilterFactory import FilterFactory
+import PARMetricsModule
 
 class ConfigFactory(object):
     """
@@ -50,11 +51,21 @@ class ConfigFactory(object):
         self.tables = []
         self.bgpspeakers = []
         self.local_topology = []
+        self.PARModules = []
 
         self.config_loader = ConfigLoader(configname)
         self.grpc_port = self.config_loader.grpc_port
         self.grpc_address = self.config_loader.grpc_address
-
+        
+        # Build object to compare stuff for performance-aware prefixes
+        # Do something here. to be done later
+        if hasattr(self.config_loader, 'bandwidth'):
+            self._build_bwidth_monitor(internal_command_queue,
+                                       outgoing_control_queue)
+        
+        if hasattr(self.config_loader, 'latency'):
+            self.build_latency_monitor(internal_command_queue,
+                                       outgoing_control_queue)
         # Build the filters, tables and peers objects from the config file
         self._build_filters()
         self._build_tables(outgoing_control_queue)
@@ -151,6 +162,19 @@ class ConfigFactory(object):
                 def_exp = peer_cfg["default_export"]
             else:
                 def_exp = ACCEPT
+            if "enable-par" in peer_cfg:
+                enable_par = peer_cfg["enable-par"]
+            else:
+                enable_par = False
+                dpport = 0
+
+            if enable_par is True:
+                try:
+                    dpport = peer_cfg["dp-grpc"]
+                except KeyError:
+                    raise Exception("Config: Peer %s is PAR enabled but\
+                        DP-GRPC port not defined" % peer_name)
+
 
             # Validate the required fields that need strict data type
             ConfigValidator.validate_type(peerASN, int, "ASN",
@@ -165,12 +189,16 @@ class ConfigFactory(object):
                     "peer %s" % peer_name)
             ConfigValidator.validate_type(def_exp, bool, "default_export",
                     "peer %s" % peer_name)
+            if enable_par is True:
+                ConfigValidator.validate_type(dpport, int, "dp-grpc",
+                        "peer %s" % peer_name)
 
             if peer_cfg["type"].lower() == "bgp":
                 obj = BGPPeer(peer_name, peerASN, peer_cfg["address"],
                         outgoing_exabgp_queue, outgoing_control_queue,
                         internal_command_queue, preference=pref,
-                        default_import=def_imp, default_export=def_exp)
+                        default_import=def_imp, default_export=def_exp,
+                        par=enable_par)
             elif peer_cfg["type"].lower() == "sdn":
                 obj = SDNPeer(peer_name, peerASN, peer_cfg["address"],
                         None, outgoing_control_queue, internal_command_queue,
@@ -265,6 +293,27 @@ class ConfigFactory(object):
             obj = BGPSpeaker(speaker, speaker_cfg["address"], speaker_cfg["type"],
                              peer_addrs,internal_command_queue, outgoing_control_queue)
             self.bgpspeakers.append(obj)
+
+    def _build_bwidth_monitor(self, internal_command_queue,
+                              outgoing_control_queue):
+        """
+            Build the PAR bandwidth object from the configuration section
+        """
+        prefixes = self.config_loader.bandwidth
+        enabled_peers = []
+        for speaker in self.config_loader.bgpspeakers:
+            speaker_cfg = self.config_loader.bgpspeakers[speaker]
+            for peer_name in speaker_cfg["peers"]:
+                peerdict = speaker_cfg["peers"][peer_name]
+                if "enable-par" not in peerdict:
+                    continue
+
+                if peerdict["enable-par"] is True:
+                    enabled_peers.append(peerdict["address"])
+        obj = PARMetricsModule.Bandwidth("bandwidth", internal_command_queue,
+                                         prefixes, enabled_peers)
+        self.PARModules.append(obj)
+
 
     def _associate_filters(self, obj, cfg_section):
         """

@@ -38,7 +38,7 @@ _ONE_DAY_IN_SECONDS = 60 * 60 * 24
 
 
 def CreateExaBGPStub():
-    channel = grpc.insecure_channel('localhost:50051')
+    channel = grpc.insecure_channel('127.0.0.1:50051')
     try:
         grpc.channel_ready_future(channel).result(timeout=10)
     except grpc.FutureTimeoutError:
@@ -56,6 +56,8 @@ def FetchMsg(stub):
         nexthop = output['nexthop']['address']
         peer_as = output['peerAs']
         prefix = output['nlri']['prefix'][0]
+        #sys.stderr.write("DEBUG:::::::Announcing/Withdraw to neighbor %s\n" %neigh)
+        #sys.stderr.flush()
         if message.msgtype == 0:
             pattrs = output['pattrs']
             origin = 'incomplete'

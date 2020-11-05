@@ -443,7 +443,7 @@ def exaBGPParser(jsonline, ctlrStub):
 
 
 def CreateStub():
-    channel = grpc.insecure_channel(target='localhost:50051',
+    channel = grpc.insecure_channel(target='127.0.0.1:50051',
                                     options=[
                                         ('grpc.keepalive_time_ms',60000),
                                         ('grpc.keepalive_timeout_ms',30000),

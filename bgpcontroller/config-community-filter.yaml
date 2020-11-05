@@ -1,0 +1,83 @@
+asn: 64496
+grpc-address: '127.0.0.1'
+grpc-port: 50051
+bgpspeakers:
+    hlz-uow-1:
+        address: '192.168.122.43'
+        type: 'exabgp'
+        peers:
+            injector1:
+                type: bgp
+                asn: 64496
+                address: '192.168.122.32'
+                tables: internet
+            injector2:
+                type: bgp
+                asn: 64496
+                address: '192.168.122.34'
+                tables: internet
+            logger1:
+                type: bgp
+                asn: 64496
+                address: '192.168.122.172'
+                default_export: false
+                default_import: false
+                filters:
+                    export: logger1_export
+            logger2:
+                type: bgp
+                asn: 64496
+                address: '192.168.122.78'
+                default_export: false
+                default_import: false
+                filters:
+                    export: logger2_export
+
+tables:
+    internet:
+        export_peers:
+            - logger1
+            - logger2
+        filters:
+            export:
+                - AS prepend OUT filter
+filters:
+    - name: AS prepend OUT filter
+      rules:
+          - type: AlwaysMatch
+      actions:
+          - action: PREPEND_ASPATH
+            value: self.asn
+
+    - name: logger1_export
+      rules:
+          - type: CommunityFilter
+            match:
+                - 21:222
+                - 21:444
+                - 22:222
+                - 22:333
+      actions:
+          - action: REMOVE_COMMUNITY
+            value:
+                - 21:222
+                - 21:444
+                - 22:222
+                - 22:333
+
+    - name: logger2_export
+      rules:
+          - type: CommunityFilter
+            match:
+                - 21:222
+                - 22:222
+                - 22:333
+      actions:
+          - action: REMOVE_COMMUNITY
+            value:
+                - 21:222
+                - 22:222
+                - 22:333
+
+local_topology: "topology.csv"
+local_routes: "internal.csv"

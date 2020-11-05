@@ -46,6 +46,9 @@ import gobgp_pb2 as gobgp
 import exabgp_pb2 as exabgp
 import exabgpapi_pb2 as exabgpapi
 import exabgpapi_pb2_grpc as exaBGPChannel
+import srv6_explicit_path_pb2_grpc
+import srv6_explicit_path_pb2
+
 from google.protobuf.any_pb2 import Any
 from google.protobuf.timestamp_pb2 import Timestamp
 from google.protobuf.json_format import MessageToJson
@@ -88,6 +91,7 @@ class Controller(exaBGPChannel.ControllerInterfaceServicer,
         self.tables = self.conf.tables
         self.bgpspeakers = self.conf.bgpspeakers
         self.network.peers = self.peers
+        self.PARModules = self.conf.PARModules
 
         # all peers start down
         self.status = {}
@@ -98,7 +102,7 @@ class Controller(exaBGPChannel.ControllerInterfaceServicer,
         for speaker in self.bgpspeakers:
             self.speakerstatus[(speaker.address)] = False
     
-        self.log.info("DIMEJI TESTING: Speaker status at startup: %s" %self.speakerstatus)
+        #self.log.info("DIMEJI TESTING: Speaker status at startup: %s" %self.speakerstatus)
         # listen for commands
         self.control_connection = Thread(
                 target=ControlConnection.ControlConnection,
@@ -166,6 +170,28 @@ class Controller(exaBGPChannel.ControllerInterfaceServicer,
         server.add_insecure_port(self.grpc_addr+':'+str(self.grpc_port))
         server.start()
 
+
+        #dpchannel = grpc.insecure_channel(target='192.168.122.172:50055')
+        #dpstub = srv6_explicit_path_pb2_grpc.SRv6ExplicitPathStub(dpchannel)
+        #path_request = srv6_explicit_path_pb2.SRv6EPRequest()
+        #path = path_request.path.add()
+        ### Set destination, device, encapmode
+        #path.destination = "2001:df15::/48"
+        #path.device = "veth0"
+        #path.encapmode = "inline"
+        #srv6_segment = path.sr_path.add()
+        #srv6_segment.segment = "2001:df9::1"
+        #srv6_segment = path.sr_path.add()
+        #srv6_segment.segment = "2001:df8::1"
+        #response = dpstub.Create(path_request, metadata=([('ip', "192.168.122.43")]))
+        #self.log.debug("Response from dp: %s" %response)
+
+        self.log.info("Starting PAR modules")
+        for parmodule in self.PARModules:
+            self.log.debug("Starting PARModule %s" % parmodule.name)
+            parmodule.daemon = True
+            parmodule.start()
+
         self.log.info("Starting BGP speakers")
         for speaker in self.bgpspeakers:
             self.log.debug("Starting BGPSpeaker %s" % speaker.name)
@@ -176,15 +202,58 @@ class Controller(exaBGPChannel.ControllerInterfaceServicer,
         for peer in self.peers:
             self.log.debug("Starting Peer %s" % peer.name)
             peer.daemon = True
+            peer.PARModules = self.PARModules
+            parprefixes = []
+            self.log.debug("CONTROLLER PAR WEIRDNESS: Peer: %s is enable_PAR: %s" %(peer.name, peer.enable_PAR))
+            if peer.enable_PAR is True:
+                for module in self.PARModules:
+                    parprefixes += module.prefixes
+                    #module.dpstub = dpstub
+                peer.PAR_prefixes = parprefixes
+                #if peer.address == "192.168.122.172":
+                #    dpchannel = grpc.insecure_channel(target='192.168.122.172:50055')
+                #    dpstub = srv6_explicit_path_pb2_grpc.SRv6ExplicitPathStub(dpchannel)
+                #    path_request = srv6_explicit_path_pb2.SRv6EPRequest()
+                ## Create a new path
+                #    path = path_request.path.add()
+                ## Set destination, device, encapmode
+                #    path.destination = "2001:df15::/48"
+                #    path.device = "veth0"
+                #    path.encapmode = "inline"
+
+                #    srv6_segment = path.sr_path.add()
+                #    srv6_segment.segment = "2001:df9::1"
+                #    srv6_segment = path.sr_path.add()
+                #    srv6_segment.segment = "2001:df8::1"
+                #    response = dpstub.Create(path_request, metadata=([('ip',"192.168.122.43")]))
+                #    self.log.debug("PEER: %s sending dp message response : %s" %(peer.name,response))
+
             peer.start()
 
+        #dpchannel = grpc.insecure_channel(target='192.168.122.172:50055')
+        #dpstub = srv6_explicit_path_pb2_grpc.SRv6ExplicitPathStub(dpchannel)
+        #path_request = srv6_explicit_path_pb2.SRv6EPRequest()
+        #path = path_request.path.add()
+        ### Set destination, device, encapmode
+        #path.destination = "2001:df15::/48"
+        #path.device = "veth0"
+        #path.encapmode = "inline"
+        #srv6_segment = path.sr_path.add()
+        #srv6_segment.segment = "2001:df9::1"
+        #srv6_segment = path.sr_path.add()
+        #srv6_segment.segment = "2001:df8::1"
+        #response = dpstub.Create(path_request, metadata=([('ip', "192.168.122.43")]))
+        #self.log.debug("Response from dp: %s" %response)
+        
+
+        
         self.log.info("Starting routing tables")
         for table in self.tables:
             self.log.debug("Starting RouteTable %s" % table.name)
             table.daemon = True
             table.start()
 
-        self.log.info("DIMEJI TESTING speaker status are starting: %s" %self.speakerstatus)
+        #self.log.info("DIMEJI TESTING speaker status are starting: %s" %self.speakerstatus)
         # read local route information, for now this won't change
         self.read_local_routes(self.conf.local_routes)
 
@@ -196,7 +265,7 @@ class Controller(exaBGPChannel.ControllerInterfaceServicer,
 
         while True:
             msgtype, command = self.internal_command_queue.get()
-            self.log.debug("DIMEJI Received message type %s  on internal_command_queue %s" %(msgtype,command))
+            #self.log.debug("DIMEJI Received message type %s  on internal_command_queue %s" %(msgtype,command))
             if msgtype == "bgp":
                 # got a BGP message, pass it off to the appropriate peer process
                 self.process_bgp_message(command)
@@ -212,6 +281,9 @@ class Controller(exaBGPChannel.ControllerInterfaceServicer,
                 # Receive routes to be announced or withdrawn from
                 # peer processes and pass it off to the appropriate speaker process
                 self.process_encode_message(command)
+            elif msgtype == "par-update":
+                self.log.debug("DIMEJI Received par-update message on internal_command_queue %s" %command)
+                self.process_par_message(command)
             else:
                 self.log.warning("Ignoring unkown message type %s " % msgtype)
 	    
@@ -302,7 +374,7 @@ class Controller(exaBGPChannel.ControllerInterfaceServicer,
             peer_address = message["peer"]["address"]
             target = self._get_peer(peer_asn, peer_address)
         elif "table" in message:
-            self.log.info("DIMEJI_CONTROLLER_DEBUG process_control_message for table is %s" % message)
+            #self.log.info("DIMEJI_CONTROLLER_DEBUG process_control_message for table is %s" % message)
             target = self._get_table(message["table"]["name"])
         else:
             target = None
@@ -335,6 +407,16 @@ class Controller(exaBGPChannel.ControllerInterfaceServicer,
         # tell our peers that they may no longer have a full view of the routes
         for peer in self.peers:
             peer.mailbox.put(("status", degraded))
+            
+    def process_par_message(self, message):
+        # Inform PAR enabled peers that a better route
+        # is available for the prefixe monitored.
+        for peer in self.peers:
+            if peer.enable_PAR is False:
+                continue
+            self.log.info("DIMEJI_DEBUG_CONTROLLER: _process_par_message %s" % message)
+            peer.mailbox.put(("par", message))
+        return
 
     def process_encode_message(self, message):
         # A route has to be announced or withdrawn to 
@@ -344,7 +426,9 @@ class Controller(exaBGPChannel.ControllerInterfaceServicer,
         peer = message['peer']
         for speaker in self.bgpspeakers:
            
-            if peer in speaker.peers:
+            if peer not in speaker.peers:
+                return
+            else:
                 if message['type'] == "advertise":
                     speaker.mailbox.put(("announce", message))
                     return
