@@ -5,16 +5,16 @@ grpc-address: '127.0.0.1'
 grpc-port: 50051
 bgpspeakers:
     hlz-uow-1:
-        address: '2001:df40::1'
+        address: '192.168.122.43'
         type: 'exabgp'
         peers:
             uow:
                 type: 'bgp'
                 asn: 64496
-                address: '2001:df40::2'
+                address: '192.168.122.172'
                 preference: 300
-                enable-par: True
-                dp-grpc: 50055
+                #enable-par: True
+                #dp-grpc: 50055
                 #default_import: False
                 #default_export: True
                 #filters:
@@ -29,7 +29,7 @@ bgpspeakers:
                 asn:  64496
                 #default_import: False
                 #default_export: True
-                address: '2001:df40::3'
+                address: '192.168.122.78'
                 #enable-par: True
                 preference: 200
                 #filters:
@@ -46,7 +46,7 @@ bgpspeakers:
             uoa:
                 type: 'bgp'
                 asn: 64496
-                address: '2001:df23::32'
+                address: '192.168.122.32'
                 tables:
                     - 'domestic'
                     - 'internet-and-sxt'
@@ -55,31 +55,28 @@ bgpspeakers:
             tait:
                  type: 'bgp'
                  asn: 64496
-                 address: '2001:df36::34'
+                 address: '192.168.122.34'
                  tables:
                      - 'internet-and-sxt'
                      - 'reannz'
                      - 'gigafast'
-                 filters:
-                     export:
-                         - 'Reject cruft'
             vocus:
               type: 'bgp'
               asn: 64496
-              address: '2001:df35::36'
+              address: '192.168.122.36'
               tables:
                   - 'internet-and-sxt'
                   - 'internet'
                   - 'reannz'
                     #- 'gigafast'
 #### Performance Aware Routing #####
-performance-aware:
+#performance-aware:
         #latency:
             #- '45.2.1.0/24'
-        bandwidth:
+            #    bandwidth:
             #- '100.1.0.0/24'
             #- '45.2.1.0/24'
-            - '2001:4521::/48'
+            #- '2001:df15::/48'
 #### INTERNET TABLES ####
 tables:
     gigafast:
@@ -319,12 +316,6 @@ filters:
                 - 4826
                 - 9560
                 - 64496
-    - name: 'Reject cruft'
-      onmatch: 'REJECT'
-      rules:
-          - type: 'PrefixFilter'
-            match:
-                - '2001:df8::/48'
 
 local_routes: "internal.csv"
 

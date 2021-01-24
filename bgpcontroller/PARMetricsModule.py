@@ -74,7 +74,7 @@ class BasePARModule(Process):
             curr_time = time.time()
             if self.last_performed != 0:
                 time_diff = curr_time - self.last_performed
-                if time_diff > 30:
+                if time_diff > 120:
                     best_routes = self._send_latest_best_route()
                     self.command_queue.put(("par-update", {
                         "routes": best_routes,
@@ -110,19 +110,23 @@ class BasePARModule(Process):
 
     def _process_add_route(self, message):
         for prefix in message["routes"]:
-            #self.log.info("BANDWIDTH_DIMEJI_BBBBBBB _process_add_route: %s" %prefix)
-            if prefix not in self.prefixes:
+            self.log.info("BANDWIDTH_DIMEJI_BBBBBBB _process_add_route: %s" %prefix)
+            self.log.info("BANDWIDTH_DIMEJI_FBDSDBFDSD _process_add_route: prefix type is %s" %type(prefix))
+            pfx = prefix.prefix
+            #prefx = pfx.prefix()
+            if pfx not in self.prefixes:
                 continue
-            
-            for route in message["routes"][prefix]:
-                self.routes[prefix].add(route)
+            self.routes[pfx].add((prefix, message["from"]))
+            #for route in message["routes"][prefix]:
+            #    self.routes[prefix].add((route, message["from"]))
         self.log.info("BANDWIDTH_DIMEJI_BBBBB _process_add_route: %s" %self.routes)
         return
 
     def _process_remove_route(self, message):
         if message["prefix"] in self.prefixes:
             self.log.info("BANDWIDTH_DIMEJI _process_remove_route Prefix: %s and for Route %s\n\n\n" %(message["prefix"], message["route"]))
-            self.routes[message["prefix"]].remove(message["route"])
+            self.routes[message["prefix"]].remove((message["route"],message["from"]))
+            self.counter = 0
     
     @abstractmethod
     def _send_latest_best_route():

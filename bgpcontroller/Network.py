@@ -30,11 +30,14 @@ from queue import Empty
 from ctypes import cdll, byref, create_string_buffer
 
 from pyospf import main as pyospf
+import networkx as nx
+
 
 class Network(object):
     def __init__(self, topology=None):
         self.log = logging.getLogger("Network")
         self.links = defaultdict(list)
+        self.graph = nx.DiGraph()
         if topology is None:
             self.topology = {}
         else:
@@ -43,6 +46,7 @@ class Network(object):
     def reset(self):
         self.links = defaultdict(list)
         self.topology = {}
+        self.graph.clear()
 
     def update(self):
         # update our path costs
@@ -64,6 +68,13 @@ class Network(object):
             self.log.debug("Topology update failed, resetting (may be temp incomplete)")
             self.reset()
 
+        # update graph
+        try:
+            self.createGraph(self.links)
+        except Exception:
+            self.log.debug("Failed to update network graph, resetting!!!!")
+            self.reset()
+
     def add_link(self, source, destination, cost, address):
         self.links[source].append((destination, cost, address))
 
@@ -75,6 +86,21 @@ class Network(object):
             self.links[source].remove((destination, cost))
         except ValueError:
             self.log.warning("MISSING LINK")
+
+    def createGraph(self, links):
+        self.graph.clear()
+        for src, dstlist in links.items():
+            for dstvalue in dstlist:
+                dst, cost, dst_addr = dstvalue
+                self.graph.add_edge(src, dst,  cost=cost,
+                                    dest_addr=dst_addr)
+        self.log.debug("TOPOLOGY GRAPH:")
+        for edge in list(self.graph.edges):
+            edge_data = self.graph.get_edge_data(edge[0], edge[1])
+            cost = edge_data['cost']
+            dst_addr = edge_data['dest_addr']
+            self.log.debug("Node %s ------> Node %s, Cost: %s, Nexthop: %s",
+                           edge[0], edge[1], cost, dst_addr)
 
     def _all_pairs_shortest_path(self):
         nexthop = {}
@@ -126,6 +152,12 @@ class Network(object):
             self.log.debug("    %s", src)
             for dst in self.topology[src]:
                 self.log.debug("        %s %s", dst, self.topology[src][dst])
+        self.log.debug("TOPOLOGY LINKS:")
+        for src in self.links:
+            self.log.debug("    %s", src)
+            for dst in self.links[src]:
+                self.log.debug("        %s", dst)
+        #self.log.debug("LINKS: %s" %self.links)
 
     def get_next_hop(self, src, dst):
         try:
@@ -138,6 +170,33 @@ class Network(object):
             return self.topology[src][dst][1]
         except KeyError:
             return None
+
+    def returnGraph(self):
+        number_of_nodes = self.graph.number_of_nodes()
+        list_of_nodes = list(self.graph.nodes())
+        return number_of_nodes, list_of_nodes
+        
+    def get_segments_list(self, src, dst):
+        unique_single_paths = set(tuple(path)
+                                  for path in nx.all_simple_paths(
+                                     self.graph, source=src, target=dst))
+        combined_single_paths = []
+        for path in unique_single_paths:
+            pairs = [path[i: i + 2] for i in range(len(path) - 1)]
+            combined_single_paths.append([
+                (pair, self.graph[pair[0]][pair[1]])
+                for pair in pairs])
+        try:
+            shortest_path = min(combined_single_paths, key=len)
+        except ValueError:
+            return None
+
+        segments = []
+        for edge in shortest_path:
+            nodes, attrs = edge
+            segments.append(attrs['dest_addr'])
+        segments.reverse()
+        return segments
 
 
 class NetworkManager(Process):
@@ -180,6 +239,7 @@ class NetworkManager(Process):
         # Backup the old topology and clear the links and topo objects
         links = self._network.links
         topology = self._network.topology
+        topoGraph = self._network.graph
         self._network.reset()
 
         # Re-load the static topology info
@@ -206,11 +266,13 @@ class NetworkManager(Process):
             self._network.topology = topology
             del links
             del topology
+            del topoGraph
             self.log.debug("Links have not changed, keeping old topo")
         else:
             self.log.debug("Links have changed, recalculating topo")
             del links
             del topology
+            del topoGraph
 
             # Recompute the topology, links are different
             self._network.update()
@@ -303,6 +365,7 @@ class NetworkManager(Process):
         # let all the peers know so they can update BGP to match new topology
         for peer in self.peers:
             peer.mailbox.put(("topology", self._network.topology))
+            peer.mailbox.put(("topolinks", self._network.links))
 
     #def __str__(self):
         #return "\n".join([str(x) for x in self.nodes])

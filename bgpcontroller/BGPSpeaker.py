@@ -159,6 +159,14 @@ class BGPSpeaker(Process):
         
             for pfx in pfxs:
                 nlri.append(pfx)
+                #self.log.info("DIMEJI_DEBUG_BGPSPEAKER _process_receive_update prefix is %s" %pfx)
+            # XXX: Remove 2001:df8::/48 for now
+            #if len(nlri) == 1:
+            #    if nlri[0] == '2001:df8::/48':
+            #        return
+            #else:
+            #    index =  nlri.index("2001:df8::/48")
+            #    nlri.pop(index)
 
             if fam['afi'] == 'AFI_IP':
                 afi = "ipv4"
@@ -244,6 +252,14 @@ class BGPSpeaker(Process):
             fam = message["family"]
             for pfx in pfxs:
                 nlri.append(pfx)
+
+            # XXX: Remove 2001:df8::/48 for now
+            #if len(nlri) == 1:
+            #    if nlri[0] == '2001:df8::/48':
+            #        return
+            #else:
+            #    index =  nlri.index("2001:df8::/48")
+            #    nlri.pop(index)
 
             if fam['afi'] == 'AFI_IP':
                 afi = "ipv4"

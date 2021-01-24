@@ -92,6 +92,8 @@ class Controller(exaBGPChannel.ControllerInterfaceServicer,
         self.bgpspeakers = self.conf.bgpspeakers
         self.network.peers = self.peers
         self.PARModules = self.conf.PARModules
+        self.datapathID = self.conf.datapathID
+        self.datapath = {}
 
         # all peers start down
         self.status = {}
@@ -205,11 +207,14 @@ class Controller(exaBGPChannel.ControllerInterfaceServicer,
             peer.PARModules = self.PARModules
             parprefixes = []
             self.log.debug("CONTROLLER PAR WEIRDNESS: Peer: %s is enable_PAR: %s" %(peer.name, peer.enable_PAR))
-            if peer.enable_PAR is True:
-                for module in self.PARModules:
-                    parprefixes += module.prefixes
+            ### XXX: Pass PAR_prefixes to all peers (20201119)
+            ### XXX: To disable, uncomment if statement below
+            ### XXX: and indent for statement
+            #if peer.enable_PAR is True:
+            for module in self.PARModules:
+                parprefixes += module.prefixes
                     #module.dpstub = dpstub
-                peer.PAR_prefixes = parprefixes
+            peer.PAR_prefixes = parprefixes
                 #if peer.address == "192.168.122.172":
                 #    dpchannel = grpc.insecure_channel(target='192.168.122.172:50055')
                 #    dpstub = srv6_explicit_path_pb2_grpc.SRv6ExplicitPathStub(dpchannel)
@@ -229,6 +234,30 @@ class Controller(exaBGPChannel.ControllerInterfaceServicer,
                 #    self.log.debug("PEER: %s sending dp message response : %s" %(peer.name,response))
 
             peer.start()
+
+        self.log.info("Initiating connection to the datapath of PAR-enabled peers")
+        for (addr, port) in self.datapathID:
+            #dpchannel = grpc.insecure_channel(target=addr+':'+str(port))
+            dpchannel = grpc.insecure_channel("[%s]:%s" %(addr, str(port)))
+            dpstub = srv6_explicit_path_pb2_grpc.SRv6ExplicitPathStub(dpchannel)
+            self.datapath[addr] = dpstub
+
+        #self.log.debug("Sending message to datapath to test")
+        #for addr in self.datapath: 
+        #    stub = self.datapath[addr]
+        #    path_request = srv6_explicit_path_pb2.SRv6EPRequest()
+        #    path = path_request.path.add() 
+        #    path.destination = "2001:df15::/48"
+        #    path.device = "veth0"
+        #    path.encapmode = "inline"
+        #    srv6_segment = path.sr_path.add()
+        #    srv6_segment.segment = "2001:df9::1"
+        #    srv6_segment = path.sr_path.add()
+        #    srv6_segment.segment = "2001:df8::1"
+        #    response = stub.Create(path_request, metadata=([('ip','192.168.122.43')]))
+        #    self.log.debug("Response from dp: %s" %response)
+
+        
 
         #dpchannel = grpc.insecure_channel(target='192.168.122.172:50055')
         #dpstub = srv6_explicit_path_pb2_grpc.SRv6ExplicitPathStub(dpchannel)
@@ -284,6 +313,9 @@ class Controller(exaBGPChannel.ControllerInterfaceServicer,
             elif msgtype == "par-update":
                 self.log.debug("DIMEJI Received par-update message on internal_command_queue %s" %command)
                 self.process_par_message(command)
+            elif msgtype == "steer":
+                self.process_update_datapath(command)
+                self.log.debug("DIMEJI CONTROLLER received PAR steer message on internal_command_queue %s" %command)
             else:
                 self.log.warning("Ignoring unkown message type %s " % msgtype)
 	    
@@ -387,6 +419,25 @@ class Controller(exaBGPChannel.ControllerInterfaceServicer,
             target.mailbox.put(
                     (message["action"], message.get("arguments", None))
             )
+            
+    def process_update_datapath(self, message):
+        self.log.info("DIMEJI_CONTROLLER_DEBUG process_update_datapath message is %s" %message)
+        peer_addr = message["peer"]["address"]
+        if peer_addr in self.datapath:
+            stub = self.datapath[peer_addr]
+            path_request = srv6_explicit_path_pb2.SRv6EPRequest()
+            path = path_request.path.add() 
+            path.destination = message["path"]["destination"]
+            path.device = message["path"]["device"]
+            path.encapmode = message["path"]["encapmode"]
+            for segs in message["path"]["segments"]:
+                srv6_segment = path.sr_path.add()
+                srv6_segment.segment = segs
+            #response = stub.Replace(path_request, metadata=([('ip','192.168.122.43')]))
+            response = stub.Replace(path_request, metadata=([('ip','2001:df23::1')]))
+            self.log.info("DIMEJI_CONTROLLER_DEBUG Controller received response %s after sending updating datapath on peer %s" %(response, peer_addr))
+        else:
+            self.log.info("DIMEJI_CONTROLLER_DEUBG Controller received STEER message from %s which is not PAR-enabled!!!!!!" %peer_addr)
 
     def process_status_message(self, message):
         # peer status changed, update what we know about them

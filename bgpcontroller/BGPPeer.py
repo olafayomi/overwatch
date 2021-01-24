@@ -224,7 +224,20 @@ class BGPPeer(Peer):
 
         # remove prefixes that no longer have routes
         for prefix in empty:
-            del self.received[prefix]
+            #del self.received[prefix]
+            pfx = Prefix(prefix)
+            if pfx in self.PAR_prefixes:
+                route = self.received[prefix]
+                message = (("remove", {
+                            "route": route,
+                            "prefix": pfx,
+                            "from": self.name,
+                          }))
+                for parmodule in self.PARModules:
+                    self.log.debug("BGPPEER DEBUG par route delete XXXXCXCSCSJSDSJD Peer %s removing routes: %s in _process_withdraw_prefixes\n\n\n\n" %(self.name, route))
+                    parmodule.mailbox.put(message)
+            del self.received[prefix]    
+                
 
         return len(prefixes) > 0
 

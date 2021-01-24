@@ -52,6 +52,8 @@ class ConfigFactory(object):
         self.bgpspeakers = []
         self.local_topology = []
         self.PARModules = []
+        self.datapathID = []
+       
 
         self.config_loader = ConfigLoader(configname)
         self.grpc_port = self.config_loader.grpc_port
@@ -166,7 +168,6 @@ class ConfigFactory(object):
                 enable_par = peer_cfg["enable-par"]
             else:
                 enable_par = False
-                dpport = 0
 
             if enable_par is True:
                 try:
@@ -174,6 +175,7 @@ class ConfigFactory(object):
                 except KeyError:
                     raise Exception("Config: Peer %s is PAR enabled but\
                         DP-GRPC port not defined" % peer_name)
+                self.datapathID.append((peer_cfg["address"], dpport))
 
 
             # Validate the required fields that need strict data type
