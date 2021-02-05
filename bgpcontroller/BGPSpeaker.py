@@ -375,13 +375,16 @@ class BGPSpeaker(Process):
                 longlivedgracefulrestart = True
 
             if capName == 'addpathcap':
-                mode = capValue["tuples"][0]["mode"]
-                if mode == 'MODE_BOTH':
-                    addpathmode = "BOTH"
-                elif mode == 'MODE_RECEIVE':
-                    addpathmode = "RECEIVE"
-                elif mode == 'MODE_SEND':
-                    addpathmode = "SEND"
+                if "tuples" in capValue:
+                    mode = capValue["tuples"][0]["mode"]
+                    if mode == 'MODE_BOTH':
+                        addpathmode = "BOTH"
+                    elif mode == 'MODE_RECEIVE':
+                        addpathmode = "RECEIVE"
+                    elif mode == 'MODE_SEND':
+                        addpathmode = "SEND"
+                    else:
+                        addpathmode = "NONE"
                 else:
                     addpathmode = "NONE"
 

@@ -407,7 +407,7 @@ class Peer(PolicyObject):
                         {
                           "paths": [
                             {
-                               "device": "ens3",
+                               "device": "as3r2-eth1",
                                "destination": str(prefix),
                                "encapmode": "encap",
                                "segments": segments
@@ -420,7 +420,7 @@ class Peer(PolicyObject):
                      {
                        "paths": [
                          {
-                            "device": "ens3",
+                            "device": "as3r2-eth1",
                             "destination": "2001:df15::/48",
                             "encapmode": "encap",
                             "segments": [
@@ -432,7 +432,7 @@ class Peer(PolicyObject):
                      {
                        "paths": [
                          {
-                            "device": "ens3",
+                            "device": "as3r2-eth1",
                             "destination": "2001:df15::/48",
                             "encapmode": "encap",
                             "segments": [
