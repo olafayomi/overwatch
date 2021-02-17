@@ -280,4 +280,17 @@ ip6tables -t mangle -A PREROUTING -i as3r2-eth0 -p tcp  --dport 465 -j MARK --se
 Apply ip6tables rules to the inbound interface on the ingress router to mark packets with
 a particular destination port so that it can be steered. then create a separate rule
 
+* Flushing IP tables rules
+```
+ip6tables -t mangle -F
+```
 
+* Show packets and byte counts for IP tables rules
+```
+ip6tables -t mangle -n -v -L
+```
+
+* Command to generate python bindings from proto files
+```
+python -m grpc_tools.protoc --proto_path=. --python_out=../../python_grpc/ --grpc_python_out=../../python_grpc/ *.proto
+```

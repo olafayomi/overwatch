@@ -169,13 +169,12 @@ class ConfigFactory(object):
             else:
                 enable_par = False
 
-            if enable_par is True:
-                try:
-                    dpport = peer_cfg["dp-grpc"]
-                except KeyError:
-                    raise Exception("Config: Peer %s is PAR enabled but\
-                        DP-GRPC port not defined" % peer_name)
-                self.datapathID.append((peer_cfg["address"], dpport))
+            try:
+                dpport = peer_cfg["dp-grpc"]
+            except KeyError:
+                raise Exception("Config: Peer %s is PAR enabled but\
+                    DP-GRPC port not defined" % peer_name)
+            self.datapathID.append((peer_cfg["address"], dpport))
 
 
             # Validate the required fields that need strict data type
@@ -215,6 +214,17 @@ class ConfigFactory(object):
                         peer_cfg["aggregate_prefix"],
                         str, "aggregate_prefix", "peer %s" % peer_name):
                     obj.add_aggregate_prefix(aggregate)
+
+            # Get interfaces for installing segments routes, raise error if not defined
+            if "interfaces" not in peer_cfg:
+                raise Exception("Peer does not have interfaces for installing segments!!!")
+            else:
+                interfaces = []
+                for interface in ConfigValidator.extract_array_data(
+                        peer_cfg["interfaces"], str, "interfaces",
+                        "peer %s" % peer_name):
+                    interfaces.append(interface)
+                obj.interfaces = interfaces
 
             # Process table associates of the peer (if defined)
             if "tables" in peer_cfg:

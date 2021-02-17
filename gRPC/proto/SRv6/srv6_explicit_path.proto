@@ -31,6 +31,8 @@ message Path {
   string encapmode = 3;
   // Device name
   string device = 4;
+  // Routing table number
+  uint32 table = 5;
 }
 
 // The SRv6EPReply message containing a simple status message

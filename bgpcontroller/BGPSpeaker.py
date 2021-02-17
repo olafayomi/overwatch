@@ -57,6 +57,7 @@ class BGPSpeaker(Process):
         self.degraded = 0
         self.daemon = True
         self.keepalived_time = 0
+        self.asn = None
         # self.init_time = 0
         # self.live = False
         self.mailbox = Queue()
@@ -526,13 +527,14 @@ class BGPSpeaker(Process):
         return
 
     def _process_speaker_healthcheck(self, message):
-        # Received a keepalive message, set proces to live
+        # Received a keepalive message, set process to live
         self.keepalived_time = time.time()
         self.active = True
         peer_addr = message["neighborAddress"]
         peer_asn = message["peerAs"]
         speaker_addr = message["speakerId"]
         speaker_as = message["localAs"]
+        self.asn = message["localAs"]
         if peer_addr in self.peers:
             self.command_queue.put(("bgp", {
                 "peer": {

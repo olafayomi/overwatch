@@ -15,6 +15,9 @@ bgpspeakers:
                 preference: 300
                 enable-par: True
                 dp-grpc: 50055
+                interfaces:
+                    - 'eth0'
+                    - 'eth1'
                 #default_import: False
                 #default_export: True
                 #filters:
@@ -31,7 +34,11 @@ bgpspeakers:
                 #default_export: True
                 address: '2001:df40::3'
                 #enable-par: True
+                dp-grpc: 50055
                 preference: 200
+                interfaces:
+                    - 'eth2'
+                    - 'eth4'
                 #filters:
                 #    import:
                 #        - 'Filter AS64498'
@@ -47,6 +54,10 @@ bgpspeakers:
                 type: 'bgp'
                 asn: 64496
                 address: '2001:df23::32'
+                dp-grpc: 50055
+                interfaces:
+                    - 'eth5'
+                    - 'eth6'
                 tables:
                     - 'domestic'
                     - 'internet-and-sxt'
@@ -56,6 +67,10 @@ bgpspeakers:
                  type: 'bgp'
                  asn: 64496
                  address: '2001:df36::34'
+                 dp-grpc: 50055
+                 interfaces:
+                     - 'eth7'
+                     - 'eth8'
                  tables:
                      - 'internet-and-sxt'
                      - 'reannz'
@@ -67,6 +82,10 @@ bgpspeakers:
               type: 'bgp'
               asn: 64496
               address: '2001:df35::36'
+              dp-grpc: 50055
+              interfaces:
+                  - 'eth9'
+                  - 'eth10'
               tables:
                   - 'internet-and-sxt'
                   - 'internet'

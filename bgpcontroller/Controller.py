@@ -237,6 +237,7 @@ class Controller(exaBGPChannel.ControllerInterfaceServicer,
 
         self.log.info("Initiating connection to the datapath of PAR-enabled peers")
         for (addr, port) in self.datapathID:
+            self.log.info(" Address: %s, Port: %s" %(addr, port))
             #dpchannel = grpc.insecure_channel(target=addr+':'+str(port))
             dpchannel = grpc.insecure_channel("[%s]:%s" %(addr, str(port)))
             dpstub = srv6_explicit_path_pb2_grpc.SRv6ExplicitPathStub(dpchannel)
@@ -423,21 +424,44 @@ class Controller(exaBGPChannel.ControllerInterfaceServicer,
     def process_update_datapath(self, message):
         self.log.info("DIMEJI_CONTROLLER_DEBUG process_update_datapath message is %s" %message)
         peer_addr = message["peer"]["address"]
-        if peer_addr in self.datapath:
-            stub = self.datapath[peer_addr]
-            path_request = srv6_explicit_path_pb2.SRv6EPRequest()
-            path = path_request.path.add() 
-            path.destination = message["path"]["destination"]
-            path.device = message["path"]["device"]
-            path.encapmode = message["path"]["encapmode"]
-            for segs in message["path"]["segments"]:
-                srv6_segment = path.sr_path.add()
-                srv6_segment.segment = segs
-            #response = stub.Replace(path_request, metadata=([('ip','192.168.122.43')]))
-            response = stub.Replace(path_request, metadata=([('ip','2001:df23::1')]))
-            self.log.info("DIMEJI_CONTROLLER_DEBUG Controller received response %s after sending updating datapath on peer %s" %(response, peer_addr))
-        else:
-            self.log.info("DIMEJI_CONTROLLER_DEUBG Controller received STEER message from %s which is not PAR-enabled!!!!!!" %peer_addr)
+        if message["action"] == "Replace":
+            if peer_addr in self.datapath:
+                stub = self.datapath[peer_addr]
+                path_request = srv6_explicit_path_pb2.SRv6EPRequest()
+                path = path_request.path.add() 
+                path.destination = message["path"]["destination"]
+                path.device = message["path"]["device"]
+                path.encapmode = message["path"]["encapmode"]
+                if 'table' in message["path"]:
+                    path.table = message["path"]["table"]
+                for segs in message["path"]["segments"]:
+                    srv6_segment = path.sr_path.add()
+                    srv6_segment.segment = segs
+                #response = stub.Replace(path_request, metadata=([('ip','192.168.122.43')]))
+                response = stub.Replace(path_request, metadata=([('ip','2001:df23::1')]))
+                self.log.info("DIMEJI_CONTROLLER_DEBUG Controller received response %s after sending updating datapath to add segs on peer %s" %(response, peer_addr))
+            else:
+                self.log.info("DIMEJI_CONTROLLER_DEUBG Controller received STEER message from %s which is not PAR-enabled!!!!!!" %peer_addr)
+        
+        if message["action"] == "Remove":
+            if peer_addr in self.datapath:
+                stub = self.datapath[peer_addr]
+                path_request = srv6_explicit_path_pb2.SRv6EPRequest()
+                path = path_request.path.add() 
+                path.destination = message["path"]["destination"]
+                path.device = message["path"]["device"]
+                path.encapmode = message["path"]["encapmode"]
+                if 'table' in message["path"]:
+                    path.table = message["path"]["table"]
+                for segs in message["path"]["segments"]:
+                    srv6_segment = path.sr_path.add()
+                    srv6_segment.segment = segs
+                #response = stub.Replace(path_request, metadata=([('ip','192.168.122.43')]))
+                response = stub.Remove(path_request, metadata=([('ip','2001:df23::1')]))
+                self.log.info("DIMEJI_CONTROLLER_DEBUG Controller received response %s after sending updating datapath to remove segs on peer %s" %(response, peer_addr))
+            else:
+                self.log.info("DIMEJI_CONTROLLER_DEUBG Controller received STEER message from %s which is not PAR-enabled!!!!!!" %peer_addr)
+
 
     def process_status_message(self, message):
         # peer status changed, update what we know about them

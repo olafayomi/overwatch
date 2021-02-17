@@ -61,6 +61,7 @@ class Peer(PolicyObject):
         self.enable_PAR = par
         self.PAR_prefixes = []
         self.PARModules = []
+        self.interfaces = []
 
         # XXX: List of tables we are receive routes from (needed to
         # send reload message to correct tables)
@@ -80,6 +81,7 @@ class Peer(PolicyObject):
         # routes that we are currently exporting
         self.exported = set()
         # routes that were received and accepted from the peer
+        # that this process represents.
         self.received = {}
         # routes received from all the tables that we are involved with
         self.adj_ribs_in = {}
@@ -164,16 +166,6 @@ class Peer(PolicyObject):
             # XXX: IF ROUTES ARE NO LONGER EXPORTABLE TO THE PEER
             # WITHDRAW ALL ROUTES, IF ANY, BEFORE CLEARING THE EXPOTED
             # ROUTES.
-            # XXX: Disabled 20201120 and could be removed.
-            #for prefix, route in self.exported:
-            #    self._do_withdraw(prefix, route)
-            #    message = (("remove", {
-            #                "route": route,
-            #                "prefix": prefix,
-            #                "from": self.name,
-            #              }))
-            #    for parmodule in self.PARModules:
-            #        parmodule.mailbox.put(message)
             self.exported.clear()
             return
 
@@ -191,6 +183,38 @@ class Peer(PolicyObject):
         # withdraw all the routes that were advertised but no longer are
         for prefix, route in self.exported.difference(full_routes):
             self._do_withdraw(prefix, route)
+            edges = list(self.routing.topology.graph.edges)
+            dest_node = ""
+            for edge in edges:
+                edge_data = self.routing.topology.graph.get_edge_data(edge[0], edge[1])
+                if route.nexthop == edge_data['dest_addr']:
+                    dest_node = edge[1]
+                    break
+
+            if dest_node:
+                segments = self.routing.topology.get_segments_list(self.name, dest_node)
+                self.log.info("TESTING FOR FULL SRV6 FOR ALL ROUTES XXXXXXX: SEGMENT %s RETURNED to node %s for _process_par_update in PEER %s", segments, dest_node, self.name)
+                datapath = [
+                            {
+                              "paths": [
+                                {
+                                  "device": self.interfaces[0],
+                                  "destination": str(prefix),
+                                  "encapmode": "encap",
+                                  "segments": segments,
+                                }
+                              ]
+                            }
+                           ]
+                self.internal_command_queue.put(("steer", {
+                    "path": datapath[0]["paths"][0],
+                    "peer": {
+                              "address": self.address,
+                              "asn": self.asn,
+                            },
+                    "action": "Remove"
+                }))
+
             # XXX: I need to fix this... Routes that are still valid should not be removed
             #      from the PAR module list
             # XXX:     Could be removed 20201120
@@ -220,6 +244,40 @@ class Peer(PolicyObject):
         # announce all the routes that haven't been advertised before
         for prefix, route in full_routes.difference(self.exported):
             self._do_announce(prefix, route)
+            self.log.info("I WANT TO TEST SOMETHING SEE PREFIX: %s, SEE ROUTE: %s", prefix, route)
+            self.log.info("AFTER WHICH NEXTHOP is %s", route.nexthop)
+            edges = list(self.routing.topology.graph.edges)
+            dest_node = ""
+            for edge in edges:
+                edge_data = self.routing.topology.graph.get_edge_data(edge[0], edge[1])
+                if route.nexthop == edge_data['dest_addr']:
+                    dest_node = edge[1]
+                    break
+
+            if dest_node:
+                segments = self.routing.topology.get_segments_list(self.name, dest_node)
+                self.log.info("TESTING FOR FULL SRV6 FOR ALL ROUTES XXXXXXX: SEGMENT %s RETURNED to node %s for _process_par_update in PEER %s", segments, dest_node, self.name)
+                datapath = [
+                            {
+                              "paths": [
+                                {
+                                  "device": self.interfaces[0],
+                                  "destination": str(prefix),
+                                  "encapmode": "encap",
+                                  "segments": segments,
+                                }
+                              ]
+                            }
+                           ]
+                self.internal_command_queue.put(("steer", {
+                    "path": datapath[0]["paths"][0],
+                    "peer": {
+                              "address": self.address,
+                              "asn": self.asn,
+                            },
+                    "action": "Replace"
+                }))
+            
             ### XXX: Disable adding routes to PAR modules
             ### XXX: Done 20201119
             #if prefix in self.PAR_prefixes:
@@ -396,7 +454,8 @@ class Peer(PolicyObject):
 
         if len(imp_routes) > 1:
             return None
-
+        # XXX: Set routing table for PAR in LINUX to 201
+        rtable = 201
         for prefix, routes in imp_routes.items():
             for route in routes:
                 nexthop = route.nexthop
@@ -410,7 +469,8 @@ class Peer(PolicyObject):
                                "device": "as3r2-eth1",
                                "destination": str(prefix),
                                "encapmode": "encap",
-                               "segments": segments
+                               "segments": segments,
+                               "table": rtable
                             }
                           ]
                         }
