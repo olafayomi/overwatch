@@ -169,7 +169,7 @@ cp /usr/local/lib/python3.6/dist-packages/ipmininet/router/config/templates/exab
 
 ## FRR BGPD configs
 
-* Until I fix the code, overwatch includes the ASN of the transit AS in the BGP updates it sends to other BGP routers in the AS. As a result, those routers reject those updates so as a workaround, the routers have an ```allowas-in``` config included in their to enable them accept and receive routes from overwatch. The ```bgpd.mako``` template in IPMininet has been modified to add the ```allowas-in``` command, see section below:
+* Until I fix the code, overwatch includes the ASN of the transit AS in the BGP updates it sends to other BGP routers in the AS. As a result, those routers reject those updates so as a workaround, the routers have an ```allowas-in``` config included in their to enable them accept and receive routes from overwatch. The ```bgpd.mako``` template in IPMininet has been modified to add the ```allowas-in``` command, see section below(This is only necessary if we're using the ```AS prepend OUT filter``` export in the tables or peers, I have disabled it):
 
 ```
 % for af in node.bgpd.address_families:
@@ -293,4 +293,14 @@ ip6tables -t mangle -n -v -L
 * Command to generate python bindings from proto files
 ```
 python -m grpc_tools.protoc --proto_path=. --python_out=../../python_grpc/ --grpc_python_out=../../python_grpc/ *.proto
+```
+
+* Dump BGP RIB for evaluation. Add this to  frr config
+```
+dump bgp routes-mrt dump-%Y-%m-%dT%H:%M:%S 120
+```
+
+* Python script to process MRT dump to analyse the RIB of routers
+```
+ python mrt2json.py -P 2001:df8:: -O test.csv -I dump-as6r1\*
 ```
