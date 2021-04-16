@@ -83,7 +83,7 @@ chmod 600 /home/ubuntu/run/exabgp.{in,out}
 ```
 In some cases it might be better to create the named pipes in /var/run
 ```
-mkfifo /var/run/exabgp.{in.out}
+mkfifo /var/run/exabgp.{in,out}
 chmod 666 /var/run/exabgp.{in,out}
 ```
 to run exabgp with configs
@@ -274,6 +274,7 @@ sysctl -w net.ipv6.conf.eth2.seg6_require_hmac=-1
 ```
 
 * IP tables rules to steer packet into SRv6 route. See good explanation of iptables in case of next time,[iptables explanation](https://danielmiessler.com/study/iptables/)
+
 ```
 ip6tables -t mangle -A PREROUTING -i as3r2-eth0 -p tcp  --dport 465 -j MARK --set-mark 2
 ```
@@ -281,26 +282,101 @@ Apply ip6tables rules to the inbound interface on the ingress router to mark pac
 a particular destination port so that it can be steered. then create a separate rule
 
 * Flushing IP tables rules
+
 ```
 ip6tables -t mangle -F
 ```
 
 * Show packets and byte counts for IP tables rules
+
 ```
 ip6tables -t mangle -n -v -L
 ```
 
 * Command to generate python bindings from proto files
+
 ```
-python -m grpc_tools.protoc --proto_path=. --python_out=../../python_grpc/ --grpc_python_out=../../python_grpc/ *.proto
+python -m grpc\_tools.protoc --proto\_path=. --python\_out=../../python\_grpc/ --grpc_python_out=../../python_grpc/ \*.proto
 ```
 
 * Dump BGP RIB for evaluation. Add this to  frr config
+
 ```
 dump bgp routes-mrt dump-%Y-%m-%dT%H:%M:%S 120
 ```
 
 * Python script to process MRT dump to analyse the RIB of routers
+
 ```
  python mrt2json.py -P 2001:df8:: -O test.csv -I dump-as6r1\*
+```
+
+* command to add constant delay to egress scheduler for an interface
+
+```
+tc qdisc add dev as4r1-eth2 root netem delay 0.200ms
+```
+
+* Install owamp on server to perform one way latency measurements. Download from git repo https://github.com/perfsonar/owamp
+```
+ git clone https://github.com/perfsonar/owamp.git
+ cd owamp 
+ # Change directory again into owamp sub-directory in the owamp repo
+ cd owamp
+ git submodule update --init 
+ ./bootstrap
+ ./configure
+ make
+```
+
+* Owamp configuration files 
+```
+# owamp-server.conf file
+authmode 0
+vardir /home/ubuntu/git-repos/owamp/owampd
+testports 8760-9960
+diskfudge 3.0
+
+```
+```
+# owamp-server.limit-bak file
+limit root with disk=0,\
+                bandwidth=0,\
+                delete_on_fetch=on
+
+limit open with parent=root, \
+                bandwidth=900m, \
+                disk=2g, \
+                allow_open_mode=on
+
+assign default regular
+```
+
+* Starting owampd on one server. command that has worked
+
+```
+./owampd -v -f -a O
+```
+
+* Starting owping on another server
+
+```
+./owping fc00:0:15::1 
+```
+
+* Debug python code with gdb
+
+```
+gdb python <pid of running process> 
+
+```
+
+* Using D-ITG to measure latency and metrics between AS2R1 and AS6H1
+
+```
+# On Sender AS2R1
+./tools/D-ITG-2.8.1-r1023/bin/ITGSend -T TCP -a 2001:4521::2 -c 100 -C 10 -t 15000 -rp 465 -l send_log_file -x recv_log_file &> /dev/null & 
+
+# On receiver 
+./tools/D-ITG-2.8.1-r1023/bin/ITGRecv -l recv_log_file  
 ```

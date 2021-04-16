@@ -87,9 +87,8 @@ class BGPSpeaker(Process):
             curr_time = time.time()
             if self.keepalived_time != 0:
                 time_diff = curr_time - self.keepalived_time
-                if time_diff > 120:
+                if time_diff > 300:
                     self._destruct()
-         
             try:
                 msgtype, message = self.mailbox.get(block=True, timeout=1)
             except Empty:
@@ -114,7 +113,7 @@ class BGPSpeaker(Process):
             del message
 
     def _process_receive_update(self, message):
-        self.keepalived_time - time.time()
+        self.keepalived_time = time.time()
         self.active = True
         peer_addr = message["neighborAddress"]
         peer_asn = message["peerAs"]
@@ -562,6 +561,7 @@ class BGPSpeaker(Process):
 
     def _destruct(self):
         # Tell the controller and peers that speaker is down
+        self.log.debug("DEBUG SILENT FAILURE: BGPSpeaker process is being destroyed!!!!")
         self.command_queue.put(("healthcheck", {
             "speaker": {
                 "address": self.address,

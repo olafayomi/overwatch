@@ -474,4 +474,5 @@ def run():
 
 if __name__ == '__main__':
     # print(sys.path)
+    sys.stderr = open('/tmp/exabgp-receiver.log', 'a+') 
     run()

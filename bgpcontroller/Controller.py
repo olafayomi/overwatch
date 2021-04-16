@@ -365,7 +365,7 @@ class Controller(exaBGPChannel.ControllerInterfaceServicer,
             self.log.warning("Ignoring keepalive from unknown speaker")
             return
         speaker.mailbox.put(("healthcheck", state))
-        #self.log.info("Keepalive message: %s" %state)
+        self.log.debug("Keepalive message: %s" %state)
         return Empty()
 
     def SendUpdateEoR(self, request, context):
@@ -468,6 +468,8 @@ class Controller(exaBGPChannel.ControllerInterfaceServicer,
         peer = (message["peer"]["address"], message["peer"]["asn"])
         assert(peer in self.status)
 
+        self.log.debug("Controller process_status_message. Status for peer %s changed to %s"
+                %(message["peer"]["address"], message["status"]))
         self.log.debug("controller status message: %s / %s" %
                 (message["peer"]["asn"], message["status"]))
 
@@ -520,7 +522,7 @@ class Controller(exaBGPChannel.ControllerInterfaceServicer,
         asn = (message["speaker"]["asn"])
         assert(speaker in self.speakerstatus)
         
-        #self.log.info("DIMEJI TESTING Speaker status after receiving healthcheck %s" %self.speakerstatus)
+        self.log.debug("DIMEJI TESTING Speaker status after receiving healthcheck %s" %self.speakerstatus)
         self.log.debug("controller status message: %s / %s" %
                 (message["speaker"]["address"], message["status"]))
 
@@ -575,7 +577,7 @@ if __name__ == "__main__":
 
     # Initiate the logging module for the execution
     logging.basicConfig(level=LOG_LEVEL,
-            format="%(levelname).1s | %(name)-10s | %(message)s")
+            format="%(asctime)s| %(levelname).1s | %(name)-10s | %(message)s")
 
     # Initiate the controller
     controller = Controller(args.conf_file)
