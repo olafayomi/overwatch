@@ -38,7 +38,6 @@ import perfmon_pb2 as perfmsg
 import struct
 import select
 import os
-from google.protobuf.json_format import MessageToDict
 
 def decode_msg_size(size_bytes: bytes) -> int:
     return struct.unpack("<I", size_bytes)[0]
@@ -59,7 +58,6 @@ class BasePARModule(Process):
         self.enabled_peers = peer_addrs
         self.mailbox = Queue()
         self.last_performed = 0
-        self.best_routes = {}
         self.counter = 0
         self.actions = {
             "add": self._process_add_route,
@@ -80,86 +78,56 @@ class BasePARModule(Process):
 
         callbacks = []
 
-        try:
-            perfpipe = os.open(self.unixsock, os.O_RDONLY | os.O_NONBLOCK)
+
+        while True:
+            #curr_time = time.time()
+            #if self.last_performed != 0:
+            #    time_diff = curr_time - self.last_performed
+            #    if time_diff > 120:
+            #        best_routes = self._send_latest_best_route()
+            #        self.command_queue.put(("par-update", {
+            #            "routes": best_routes,
+            #            "type": self.name,
+            #        }))
+            perfmsg = perfserver.handle_request()
+            self.log.info("PARMETRICSMONITORI: Performance message received is %s" %perfmsg)
             try:
-                poll = select.poll()
-                poll.register(perfpipe, select.POLLIN)
-                try:
-                    while True:
-                        #curr_time = time.time()
-                        #if self.last_performed != 0:
-                        #    time_diff = curr_time - self.last_performed
-                        #    if time_diff > 120:
-                        #        best_routes = self._send_latest_best_route()
-                        #        self.command_queue.put(("par-update", {
-                        #            "routes": best_routes,
-                        #            "type": self.name,
-                        #        }))
-                        if (perfpipe, select.POLLIN) in poll.poll(500): 
-                            self.log.info("PARMetricsModule received message from IPMininet!!!")
-                            msg_size_bytes = os.read(perfpipe, 4)
-                            msg_size = decode_msg_size(msg_size_bytes) 
-                            msg_content = os.read(perfpipe, msg_size)
-                            perfnode = perfmsg.ExitNode() 
-                            exitnode = perfnode.FromString(msg_content)
-                            node = exitnode.name
-                            nexthop = exitnode.address
-                            self.best_routes = self._fetch_route(node, nexthop)
-                            if len(self.best_routes) != 0: 
-                                self.command_queue.put(("par-update", {
-                                    "routes": self.best_routes,
-                                    "type": self.name,
-                                }))
-                                self.log.info("PARMetricsModule RUN RECEIVED PERFOMANCE UPDATE AND NOTIFIED CONTROLLER TO UPDATE DATAPLANE WITH: %s" %self.best_routes)
-                        else:
-                            pass
+                msgtype, message = self.mailbox.get(block=True, timeout=1)
+            except Empty:
+                for callback, timeout in callbacks:
+                    self.log.debug("No recent messages, callback %s triggereed" %
+                            callback)
+                    callback()
+                callbacks.clear()
+                continue
 
-                        try:
-                            msgtype, message = self.mailbox.get(block=True, timeout=1)
-                        except Empty:
-                            for callback, timeout in callbacks:
-                                self.log.debug("No recent messages, callback %s triggereed" %
-                                        callback)
-                                callback()
-                            callbacks.clear()
-                            continue
+            # if it's been too long since we added a callback, deal with it
+            # now before continuing to process messages
+            while len(callbacks) > 0 and callbacks[0][1] < time.time():
+                self.log.debug("Triggering overdue callback %s" % callback)
+                callback, timeout = callbacks.pop(0)
+                callback()
 
-                        # if it's been too long since we added a callback, deal with it
-                        # now before continuing to process messages
-                        while len(callbacks) > 0 and callbacks[0][1] < time.time():
-                            self.log.debug("Triggering overdue callback %s" % callback)
-                            callback, timeout = callbacks.pop(0)
-                            callback()
-
-                        if msgtype in self.actions:
-                            # actions may trigger a callback (e.g. advertising routes) but
-                            # we don't want to repeatedly perform these actions, so delay
-                            # briefly in case we get more messages
-                            callback = self.actions[msgtype](message)
-                            if callback and not any(callback == x for x, y in callbacks):
-                                callbacks.append((callback, time.time() + 10))
-                        else:
-                            self.log.warning("Ignoring unknown message type %s" % msgtype)
-                        del message
-                finally:
-                    poll.unregister(perfpipe) 
-            finally:
-                os.close(perfpipe)
-        finally:
-            os.remove(self.unixsock)
+            if msgtype in self.actions:
+                # actions may trigger a callback (e.g. advertising routes) but
+                # we don't want to repeatedly perform these actions, so delay
+                # briefly in case we get more messages
+                callback = self.actions[msgtype](message)
+                if callback and not any(callback == x for x, y in callbacks):
+                    callbacks.append((callback, time.time() + 10))
+            else:
+                self.log.warning("Ignoring unknown message type %s" % msgtype)
+            del message
 
     def _process_add_route(self, message):
-        for route in message["routes"]:
-            self.log.info("BANDWIDTH_DIMEJI_BBBBBBB _process_add_route: %s" %route)
-            self.log.info("BANDWIDTH_DIMEJI_FBDSDBFDSD _process_add_route: prefix type is %s" % type(route))
-            pfx = route.prefix
-            self.log.info("BANDWIDTH_DIMEJI_CHECKING PFX is %s" %pfx)
-            self.log.info("BANDWIDTH_DIMEJI_CHECKING PFX TYPE is %s" %type(pfx))
+        for prefix in message["routes"]:
+            self.log.info("BANDWIDTH_DIMEJI_BBBBBBB _process_add_route: %s" %prefix)
+            self.log.info("BANDWIDTH_DIMEJI_FBDSDBFDSD _process_add_route: prefix type is %s" % type(prefix))
+            pfx = prefix.prefix
             #prefx = pfx.prefix()
             if pfx not in self.prefixes:
                 continue
-            self.routes[pfx].add((route, message["from"]))
+            self.routes[pfx].add((prefix, message["from"]))
             #for route in message["routes"][prefix]:
             #    self.routes[prefix].add((route, message["from"]))
         self.log.info("BANDWIDTH_DIMEJI_BBBBB _process_add_route: %s" %self.routes)
@@ -172,11 +140,7 @@ class BasePARModule(Process):
             self.counter = 0
     
     @abstractmethod
-    def _send_latest_best_route(self):
-        pass
-    
-    @abstractmethod
-    def _fetch_route(self, exitpeer, nexthop):
+    def _send_latest_best_route():
         pass
 
     @abstractmethod
@@ -192,18 +156,6 @@ class Bandwidth(BasePARModule):
         #    "get": self._process_send_best_route,
         #}
         self.command_queue = command_queue
-
-
-    def _fetch_route(self, exitpeer, nexthop): 
-        best_routes  = {}
-        for prefix, routes_desc in self.routes.items():
-            for desc in routes_desc:
-                route, exitnode = desc
-                if (exitnode == exitpeer) and (nexthop == route.nexthop): 
-                    best_routes[prefix] = [desc]
-        self.log.info("PARMetricsModule_DIMEJI_VALIDATION _FETCH_ROUTE returning: %s" %best_routes)
-        return best_routes
- 
 
     def _send_latest_best_route(self):
         self.last_performed = time.time()
@@ -237,17 +189,12 @@ class Bandwidth(BasePARModule):
     def _process_send_best_route(self, message):
         if message["from"] not in self.enabled_peers:
             return
-        if len(self.best_routes) == 0:
-            best_routes = self._send_latest_best_route()
-            self.command_queue.put(("par-update", {
-                "routes": best_routes,
-                "type": self.name,
-            }))
-        else:
-            self.command_queue.put(("par-update", {
-                "routes": self.best_routes,
-                "type": self.name,
-            }))
+        #self.last_performed = time.time()
+        best_routes = self._send_latest_best_route()
+        self.command_queue.put(("par-update", {
+            "routes": best_routes,
+            "type": self.name,
+        }))
         self.log.info("BANDWIDTH_DIMEJI_FJDDHGDJDH^&*^SDHFKDHDH _Process_send_best_route message sent !!!")
         return
 

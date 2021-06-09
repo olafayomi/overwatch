@@ -380,3 +380,22 @@ gdb python <pid of running process>
 # On receiver 
 ./tools/D-ITG-2.8.1-r1023/bin/ITGRecv -l recv_log_file  
 ```
+
+* Remove old version of ovs
+```
+apt-get remove  openvswitch-testcontroller openvswitch-common openvswitch-pki openswitch-switch
+```
+
+* Exporting CSV to Google sheets using python. [link](https://medium.com/craftsmenltd/from-csv-to-google-sheet-using-python-ef097cb014f9) 
+
+* Use library called ```gspread``` with pip in your virtual env. 
+
+* Go to google developers console and enable the Google drive and google sheet APIs. [link](https://console.developers.google.com) 
+
+* Create Credentials
+
+* Download credentials in json file.
+
+* Create new spreadsheet and share the spreadsheet with edit permission with the ```client_email``` in the credentials file.
+
+* Run scripts to upload CSV files to google spreadsheet.

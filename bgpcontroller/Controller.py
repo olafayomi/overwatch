@@ -94,6 +94,7 @@ class Controller(exaBGPChannel.ControllerInterfaceServicer,
         self.PARModules = self.conf.PARModules
         self.datapathID = self.conf.datapathID
         self.datapath = {}
+        #self.initial_par = 0
 
         # all peers start down
         self.status = {}
@@ -422,7 +423,7 @@ class Controller(exaBGPChannel.ControllerInterfaceServicer,
             )
             
     def process_update_datapath(self, message):
-        self.log.info("DIMEJI_CONTROLLER_DEBUG process_update_datapath message is %s" %message)
+        self.log.info("DIMEJI_CONTROLLER_DEBUG_BEGIN_PROCESSING process_update_datapath message is %s" %message)
         peer_addr = message["peer"]["address"]
         if message["action"] == "Replace":
             if peer_addr in self.datapath:
@@ -434,6 +435,10 @@ class Controller(exaBGPChannel.ControllerInterfaceServicer,
                 path.encapmode = message["path"]["encapmode"]
                 if 'table' in message["path"]:
                     path.table = message["path"]["table"]
+                    #self.initial_par += 1
+                    #if self.initial_par > 1:
+                    #    self.log.info("DIMEJI_CONTROLLER_DEBUG NOT SENDING SEGMENTS TO DP. Count: %s" %self.initial_par)
+                    #    return
                 for segs in message["path"]["segments"]:
                     srv6_segment = path.sr_path.add()
                     srv6_segment.segment = segs
@@ -461,7 +466,7 @@ class Controller(exaBGPChannel.ControllerInterfaceServicer,
                 self.log.info("DIMEJI_CONTROLLER_DEBUG Controller received response %s after sending updating datapath to remove segs on peer %s" %(response, peer_addr))
             else:
                 self.log.info("DIMEJI_CONTROLLER_DEUBG Controller received STEER message from %s which is not PAR-enabled!!!!!!" %peer_addr)
-
+        self.log.info("DIMEJI_CONTROLLER_DEBUG_END_PROCESSING process_update_datapath")
 
     def process_status_message(self, message):
         # peer status changed, update what we know about them
