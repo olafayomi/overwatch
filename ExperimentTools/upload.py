@@ -61,7 +61,7 @@ if __name__ == "__main__":
 
 
     for i in range(1, args.runs+1):
-        path_pattern = csv_dir+'*'+args.date_str+'-'+str(i)+'*' 
+        path_pattern = csv_dir+'*'+args.date_str+'-'+str(i)+'.csv' 
         path = glob.glob(path_pattern) 
 
         if not path:

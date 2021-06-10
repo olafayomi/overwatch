@@ -103,13 +103,19 @@ if __name__ == "__main__":
     path = basepath+'/'+'*'+args.date_str+'*'
 
     for i in range(1, args.runs+1):
-        path = basepath+'/'+'*'+args.date_str+'-'+str(i)+'*'
+        path = basepath+'/'+'*'+args.date_str+'-'+str(i)+'-*'
         filepaths = glob.glob(path) 
         if not filepaths:
             print("D-ITG Decoded logs do not exist for %s!!!" %(args.date_str+'-'+str(i)))
             continue
+        print("filepaths seen by glob: %s" %filepaths)
+
+        if len(filepaths) > 2:
+            print("More than two log files seen, fix this!!!!")
+            sys.exit(-1)
 
         for log in filepaths:
+            print("i is %s"  %i)
             if fnmatch.fnmatch(log, '*'+args.h1_pfx+'*'):
                 print("We got AS6H1 logs: %s" %log)
                 with open(log) as f:
@@ -136,7 +142,7 @@ if __name__ == "__main__":
                     h2_delays, h2_min, h2_max, h2_min_idx, h2_max_idx = CalculateDelay(h2_lines)
 
         if len(h1_delays) >= len(h2_delays): 
-            max_csvlines = len(h2_delays)
+            max_csvlines = len(h1_delays)
         else: 
             max_csvlines  = len(h2_delays) 
             
@@ -178,16 +184,3 @@ if __name__ == "__main__":
                 writer.writerow(content)
         print("Generated: %s" %csvfilepath)
         print("\n")
-
-                    
-
-
-                    
-
-            
-
-
-    #for name in glob.glob(path):
-    #    print("Decoded logs: %s" %name)
-    #    path = pathlib.Path(name)
-

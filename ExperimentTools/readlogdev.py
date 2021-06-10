@@ -88,6 +88,7 @@ def PrintStats(_max_delay, _min_delay,_max_idx,_min_idx,_delays,_lines):
     print("95th percentile of delay is %s" %np.percentile(_delays, 95))
     print("98th percentile of delay is %s" %np.percentile(_delays, 98))
     print("99th percentile of delay is %s" %np.percentile(_delays, 99))
+    print("75th percentile of delay is %s" %np.percentile(_delays, 75))
     print("50th percentile of delay is %s" %np.percentile(_delays, 50))
     print("There are %s packets in the log" %len(_lines))
     print("\n\n")
