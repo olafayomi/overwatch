@@ -466,7 +466,8 @@ class Peer(PolicyObject):
                         {
                           "paths": [
                             {
-                               "device": "as3r2-eth1",
+                               #"device": "as3r2-eth1",
+                               "device": self.interfaces[0],
                                "destination": str(prefix),
                                "encapmode": "encap",
                                "segments": segments,
@@ -475,34 +476,6 @@ class Peer(PolicyObject):
                           ]
                         }
                        ]
-
-        datapaths = [
-                     {
-                       "paths": [
-                         {
-                            "device": "as3r2-eth1",
-                            "destination": "2001:df15::/48",
-                            "encapmode": "encap",
-                            "segments": [
-                                "2001:df9::1",
-                                "2001:df8::1"
-                            ]                   
-                         }
-                      ]},
-                     {
-                       "paths": [
-                         {
-                            "device": "as3r2-eth1",
-                            "destination": "2001:df15::/48",
-                            "encapmode": "encap",
-                            "segments": [
-                                "2001:df10::3",
-                                "2001:df8::1"
-                            ]
-                         }
-                       ]
-                     }]
-                      
         self.internal_command_queue.put(("steer", {
             "path": datapath[0]["paths"][0],
             "peer": {
