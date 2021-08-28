@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 # Copyright (c) 2020, WAND Network Research Group
 #                     Department of Computer Science
 #                     University of Waikato
@@ -39,6 +41,10 @@ import struct
 import select
 import os
 from google.protobuf.json_format import MessageToDict
+from utils import get_address_family, ipv6_addr_is_subset,\
+     ipv4_addr_is_subset
+from Flow import Flow
+from socket import AF_INET, AF_INET6
 
 def decode_msg_size(size_bytes: bytes) -> int:
     return struct.unpack("<I", size_bytes)[0]
@@ -47,13 +53,20 @@ def decode_msg_size(size_bytes: bytes) -> int:
 class BasePARModule(Process):
     __metaclass__ = ABCMeta
 
-    def __init__(self, name, command_queue, prefixes, peer_addrs):
+    def __init__(self, name, command_queue, flows, peer_addrs):
         Process.__init__(self, name=name)
 
         self.command_queue = command_queue
-        self.prefixes = []
-        for prefix in prefixes:
-            self.prefixes.append(Prefix(prefix))
+        self.flows = []
+
+        self.prefixes = set() 
+        for flowtype, desc in flows.items():
+            print("Desc: %s" %desc)
+            print("desc['prefixes']: %s" %desc['prefixes'])
+            flow = Flow(flowtype, desc['protocol'],desc['port'], desc['prefixes'])
+            self.flows.append(flow)
+            for prefix in desc['prefixes']:
+                self.prefixes.add(Prefix(prefix))
         self.routes = {prefix: set() for prefix in self.prefixes}
         self.daemon = True
         self.enabled_peers = peer_addrs
@@ -66,7 +79,8 @@ class BasePARModule(Process):
             "remove": self._process_remove_route,
             "get": self._process_send_best_route,
         }
-        self.unixsock = '/home/ubuntu/perf.sock'
+        self.unixsock = '/home/ubuntu/'+str(self.name)+'.sock'
+        #'/home/ubuntu/perf.sock'
         os.mkfifo(self.unixsock)
 
     def __str__(self):
@@ -87,15 +101,15 @@ class BasePARModule(Process):
                 poll.register(perfpipe, select.POLLIN)
                 try:
                     while True:
-                        #curr_time = time.time()
-                        #if self.last_performed != 0:
-                        #    time_diff = curr_time - self.last_performed
-                        #    if time_diff > 120:
-                        #        best_routes = self._send_latest_best_route()
-                        #        self.command_queue.put(("par-update", {
-                        #            "routes": best_routes,
-                        #            "type": self.name,
-                        #        }))
+                        curr_time = time.time()
+                        if self.last_performed != 0:
+                            time_diff = curr_time - self.last_performed
+                            if time_diff > 120:
+                                best_routes = self._send_latest_best_route()
+                                self.command_queue.put(("par-update", {
+                                    "routes": best_routes,
+                                    "type": self.name,
+                                }))
                         if (perfpipe, select.POLLIN) in poll.poll(500): 
                             self.log.info("PARMetricsModule received message from IPMininet!!!")
                             msg_size_bytes = os.read(perfpipe, 4)
@@ -105,13 +119,13 @@ class BasePARModule(Process):
                             exitnode = perfnode.FromString(msg_content)
                             node = exitnode.name
                             nexthop = exitnode.address
-                            self.best_routes = self._fetch_route(node, nexthop)
-                            if len(self.best_routes) != 0: 
-                                self.command_queue.put(("par-update", {
-                                    "routes": self.best_routes,
-                                    "type": self.name,
-                                }))
-                                self.log.info("PARMetricsModule RUN RECEIVED PERFOMANCE UPDATE AND NOTIFIED CONTROLLER TO UPDATE DATAPLANE WITH: %s" %self.best_routes)
+                            #self.best_routes = self._fetch_route(node, nexthop)
+                            #if len(self.best_routes) != 0: 
+                            #    self.command_queue.put(("par-update", {
+                            #        "routes": self.best_routes,
+                            #        "type": self.name,
+                            #    }))
+                            #    self.log.info("PARMetricsModule RUN RECEIVED PERFOMANCE UPDATE AND NOTIFIED CONTROLLER TO UPDATE DATAPLANE WITH: %s" %self.best_routes)
                         else:
                             pass
 
@@ -156,21 +170,36 @@ class BasePARModule(Process):
             pfx = route.prefix
             self.log.info("BANDWIDTH_DIMEJI_CHECKING PFX is %s" %pfx)
             self.log.info("BANDWIDTH_DIMEJI_CHECKING PFX TYPE is %s" %type(pfx))
-            #prefx = pfx.prefix()
-            if pfx not in self.prefixes:
-                continue
-            self.routes[pfx].add((route, message["from"]))
+            addr_family = get_address_family(str(pfx))
+            if addr_family == AF_INET6:
+                for dest in self.prefixes:
+                    if ipv6_addr_is_subset(str(dest),str(pfx)):
+                        self.routes[dest].add((route, message["from"]))
+
+            if addr_family == AF_INET:
+                for dest in self.prefixes:
+                    if ipv4_addr_is_subset(str(dest),str(pfx)):
+                        self.routes[dest].add((route, message["from"]))
             #for route in message["routes"][prefix]:
             #    self.routes[prefix].add((route, message["from"]))
         self.log.info("BANDWIDTH_DIMEJI_BBBBB _process_add_route: %s" %self.routes)
         return
 
     def _process_remove_route(self, message):
-        if message["prefix"] in self.prefixes:
-            self.log.info("BANDWIDTH_DIMEJI _process_remove_route Prefix: %s and for Route %s\n\n\n" %(message["prefix"], message["route"]))
-            self.routes[message["prefix"]].remove((message["route"],message["from"]))
-            self.counter = 0
-    
+        for dest in self.prefixes:
+            pfx = str(message["prefix"])
+            addr_family = get_address_family(str(pfx))
+            if addr_family == AF_INET6:
+                if ipv6_addr_is_subset(str(dest), pfx):
+                    self.log.info("BANDWIDTH_DIMEJI _process_remove_route Prefix: %s and for Route %s\n\n\n" %(message["prefix"], message["route"]))
+                    self.routes[dest].remove((message["route"],message["from"]))
+
+                if ipv4_addr_is_subset(str(dest), pfx):
+                    self.log.info("BANDWIDTH_DIMEJI _process_remove_route Prefix: %s and for Route %s\n\n\n" %(message["prefix"], message["route"]))
+                    self.routes[dest].remove((message["route"],message["from"]))
+                self.counter = 0
+
+
     @abstractmethod
     def _send_latest_best_route(self):
         pass
@@ -184,9 +213,10 @@ class BasePARModule(Process):
         self.log.info("PARMetricsModule_DIMEJI_BBB _process_send_best_route print before pass!!!!!!!")
         pass
 
+
 class Bandwidth(BasePARModule):
     def __init__(self, name, command_queue, prefixes, peer_addrs):
-        super(Bandwidth, self).__init__(name, command_queue, prefixes, peer_addrs)
+        super(Bandwidth, self).__init__(name, command_queue, flows, peer_addrs)
         self.log = logging.getLogger("BANDWIDTH")
         #self.actions = {
         #    "get": self._process_send_best_route,
@@ -234,9 +264,11 @@ class Bandwidth(BasePARModule):
         self.log.info("BANDWITH_DIMEJI _send_latest_best_route: %s" % best_routes)
         return best_routes
 
+
     def _process_send_best_route(self, message):
         if message["from"] not in self.enabled_peers:
             return
+
         if len(self.best_routes) == 0:
             best_routes = self._send_latest_best_route()
             self.command_queue.put(("par-update", {
@@ -251,3 +283,73 @@ class Bandwidth(BasePARModule):
         self.log.info("BANDWIDTH_DIMEJI_FJDDHGDJDH^&*^SDHFKDHDH _Process_send_best_route message sent !!!")
         return
 
+class TrafficModule(BasePARModule):
+    def __init__(self, name, command_queue, flows, peer_addrs):
+        super(TrafficModule, self).__init__(name, command_queue, flows, peer_addrs)
+        self.log = logging.getLogger(self.name)
+        #self.actions = {
+        #    "get": self._process_send_best_route,
+        #}
+        self.command_queue = command_queue
+
+
+    def _fetch_route(self, exitpeer, nexthop): 
+        best_routes  = {}
+        for prefix, routes_desc in self.routes.items():
+            for desc in routes_desc:
+                route, exitnode = desc
+                if (exitnode == exitpeer) and (nexthop == route.nexthop): 
+                    best_routes[prefix] = [desc]
+        self.log.info("PARMetricsModule_DIMEJI_VALIDATION _FETCH_ROUTE returning: %s" %best_routes)
+        return best_routes
+ 
+
+    def _send_latest_best_route(self):
+        self.last_performed = time.time()
+        best_routes = {}
+        for prefix, routes in self.routes.items():
+            max_index = len(routes) - 1
+            if (len(routes) != 0) and (self.counter <= max_index):
+                #self.counter += 1
+                lroutes = list(routes)
+                self.log.info("BANDWIDTH_DIMEJI _send_latest_best_route length of available routes for PAR is %s" %len(routes))
+                self.log.info("BANDWIDTH_DIMEJI _send_latest_best_route send route %s for counter %s\n\n" %(lroutes[self.counter], self.counter))
+                best_routes[prefix] = [lroutes[self.counter]]
+                self.counter += 1
+                if self.counter > max_index:
+                    self.log.info("BANDWDITH_DIMEJI _send_latest_best_route self.counter is %s to be set to 0\n\n" %self.counter)
+                    self.counter = 0
+            elif len(routes) == 1:
+                self.counter = 0
+                lroutes = list(routes)
+                self.log.info("BANDWIDTH_DIMEJI _send_latest_best_route length of available routes for PAR is %s" %len(routes))
+                self.log.info("BANDWIDTH_DIMEJI _send_latest_best_route send route %s for counter %s\n\n" %(lroutes[self.counter], self.counter))
+                best_routes[prefix] = [lroutes[self.counter]]
+                self.counter += 1
+                best_routes[prefix] = [random.choice(list(routes))]
+            else:
+                best_routes[prefix] = []
+
+        self.log.info("BANDWITH_DIMEJI _send_latest_best_route: %s" % best_routes)
+        return best_routes
+
+    def _process_send_best_route(self, message):
+
+        if message["from"] not in self.enabled_peers:
+            return
+
+        if len(self.best_routes) == 0:
+            best_routes = self._send_latest_best_route()
+            self.command_queue.put(("par-update", {
+                "routes": best_routes,
+                "type": self.name,
+            }))
+        else:
+            self.command_queue.put(("par-update", {
+                "routes": self.best_routes,
+                "type": self.name,
+            }))
+        self.log.info("BANDWIDTH_DIMEJI_FJDDHGDJDH^&*^SDHFKDHDH _Process_send_best_route message sent !!!")
+        return
+
+    

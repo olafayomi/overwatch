@@ -19,7 +19,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto3',
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n\x18srv6_explicit_path.proto\x12\x12srv6_explicit_path\"7\n\rSRv6EPRequest\x12&\n\x04path\x18\x01 \x03(\x0b\x32\x18.srv6_explicit_path.Path\"\xa4\x01\n\x04Path\x12\x13\n\x0b\x64\x65stination\x18\x01 \x01(\t\x12\x35\n\x07sr_path\x18\x02 \x03(\x0b\x32$.srv6_explicit_path.Path.SRv6Segment\x12\x11\n\tencapmode\x18\x03 \x01(\t\x12\x0e\n\x06\x64\x65vice\x18\x04 \x01(\t\x12\r\n\x05table\x18\x05 \x01(\r\x1a\x1e\n\x0bSRv6Segment\x12\x0f\n\x07segment\x18\x01 \x01(\t\"\x1e\n\x0bSRv6EPReply\x12\x0f\n\x07message\x18\x01 \x01(\t2\x83\x02\n\x10SRv6ExplicitPath\x12N\n\x06\x43reate\x12!.srv6_explicit_path.SRv6EPRequest\x1a\x1f.srv6_explicit_path.SRv6EPReply\"\x00\x12N\n\x06Remove\x12!.srv6_explicit_path.SRv6EPRequest\x1a\x1f.srv6_explicit_path.SRv6EPReply\"\x00\x12O\n\x07Replace\x12!.srv6_explicit_path.SRv6EPRequest\x1a\x1f.srv6_explicit_path.SRv6EPReply\"\x00\x62\x06proto3'
+  serialized_pb=b'\n\x18srv6_explicit_path.proto\x12\x12srv6_explicit_path\"7\n\rSRv6EPRequest\x12&\n\x04path\x18\x01 \x03(\x0b\x32\x18.srv6_explicit_path.Path\"\xa4\x01\n\x04Path\x12\x13\n\x0b\x64\x65stination\x18\x01 \x01(\t\x12\x35\n\x07sr_path\x18\x02 \x03(\x0b\x32$.srv6_explicit_path.Path.SRv6Segment\x12\x11\n\tencapmode\x18\x03 \x01(\t\x12\x0e\n\x06\x64\x65vice\x18\x04 \x01(\r\x12\r\n\x05table\x18\x05 \x01(\r\x1a\x1e\n\x0bSRv6Segment\x12\x0f\n\x07segment\x18\x01 \x01(\t\"\x1e\n\x0bSRv6EPReply\x12\x0f\n\x07message\x18\x01 \x01(\t2\x83\x02\n\x10SRv6ExplicitPath\x12N\n\x06\x43reate\x12!.srv6_explicit_path.SRv6EPRequest\x1a\x1f.srv6_explicit_path.SRv6EPReply\"\x00\x12N\n\x06Remove\x12!.srv6_explicit_path.SRv6EPRequest\x1a\x1f.srv6_explicit_path.SRv6EPReply\"\x00\x12O\n\x07Replace\x12!.srv6_explicit_path.SRv6EPRequest\x1a\x1f.srv6_explicit_path.SRv6EPReply\"\x00\x62\x06proto3'
 )
 
 
@@ -119,8 +119,8 @@ _PATH = _descriptor.Descriptor(
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
       name='device', full_name='srv6_explicit_path.Path.device', index=3,
-      number=4, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=b"".decode('utf-8'),
+      number=4, type=13, cpp_type=3, label=1,
+      has_default_value=False, default_value=0,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),

@@ -35,6 +35,7 @@ from Configuration import ConfigLoader, ConfigValidator
 from ConfigurationFilterFactory import FilterFactory
 import PARMetricsModule
 
+
 class ConfigFactory(object):
     """
         Load all the configuration parameters and build the required objects
@@ -42,7 +43,7 @@ class ConfigFactory(object):
     """
 
     def __init__(self, internal_command_queue, outgoing_exabgp_queue,
-            outgoing_control_queue, configname="config.yaml"):
+                 outgoing_control_queue, configname="config.yaml"):
 
         self.log = logging.getLogger("Config")
 
@@ -53,26 +54,33 @@ class ConfigFactory(object):
         self.local_topology = []
         self.PARModules = []
         self.datapathID = []
-       
 
         self.config_loader = ConfigLoader(configname)
         self.grpc_port = self.config_loader.grpc_port
         self.grpc_address = self.config_loader.grpc_address
-        
+
         # Build object to compare stuff for performance-aware prefixes
         # Do something here. to be done later
+        ### TODO: Delete _self._build_bwidht_monitor and
+        ###       self.build_latency_monitor. These have been
+        ###       superseded by self._build_traffic_modules.
         if hasattr(self.config_loader, 'bandwidth'):
             self._build_bwidth_monitor(internal_command_queue,
                                        outgoing_control_queue)
-        
+
         if hasattr(self.config_loader, 'latency'):
             self.build_latency_monitor(internal_command_queue,
                                        outgoing_control_queue)
+
+        if hasattr(self.config_loader, 'PARTrafficTypes'):
+            self._build_traffic_modules(internal_command_queue,
+                                        outgoing_control_queue)
         # Build the filters, tables and peers objects from the config file
         self._build_filters()
         self._build_tables(outgoing_control_queue)
         self._build_speakers(outgoing_exabgp_queue, outgoing_control_queue,
                              internal_command_queue)
+
         #self._build_peers(outgoing_exabgp_queue, outgoing_control_queue,
         #                  internal_command_queue, self.config_loader.peers)
 
@@ -216,15 +224,16 @@ class ConfigFactory(object):
                     obj.add_aggregate_prefix(aggregate)
 
             # Get interfaces for installing segments routes, raise error if not defined
-            if "interfaces" not in peer_cfg:
-                raise Exception("Peer does not have interfaces for installing segments!!!")
-            else:
-                interfaces = []
-                for interface in ConfigValidator.extract_array_data(
-                        peer_cfg["interfaces"], str, "interfaces",
-                        "peer %s" % peer_name):
-                    interfaces.append(interface)
-                obj.interfaces = interfaces
+            ### Disable this!!! Controller should query dataplane for interfaces.
+            #if "interfaces" not in peer_cfg:
+            #    raise Exception("Peer does not have interfaces for installing segments!!!")
+            #else:
+            #    interfaces = []
+            #    for interface in ConfigValidator.extract_array_data(
+            #            peer_cfg["interfaces"], str, "interfaces",
+            #            "peer %s" % peer_name):
+            #        interfaces.append(interface)
+            #    obj.interfaces = interfaces
 
             # Process table associates of the peer (if defined)
             if "tables" in peer_cfg:
@@ -303,7 +312,7 @@ class ConfigFactory(object):
                 peer_addrs.append(speaker_cfg["peers"][peer_name]
                                   ["address"])
             obj = BGPSpeaker(speaker, speaker_cfg["address"], speaker_cfg["type"],
-                             peer_addrs,internal_command_queue, outgoing_control_queue)
+                             peer_addrs, internal_command_queue, outgoing_control_queue)
             self.bgpspeakers.append(obj)
 
     def _build_bwidth_monitor(self, internal_command_queue,
@@ -325,6 +334,29 @@ class ConfigFactory(object):
         obj = PARMetricsModule.Bandwidth("bandwidth", internal_command_queue,
                                          prefixes, enabled_peers)
         self.PARModules.append(obj)
+
+
+    def _build_traffic_modules(self, internal_command_queue,
+                              outgoing_control_queue):
+        """
+            Build the PAR traffic module object from the configuration section
+        """
+        enabled_peers = []
+        for speaker in self.config_loader.bgpspeakers:
+            speaker_cfg = self.config_loader.bgpspeakers[speaker]
+            for peer_name in speaker_cfg["peers"]:
+                peerdict = speaker_cfg["peers"][peer_name]
+                if "enable-par" not in peerdict:
+                    continue
+
+                if peerdict["enable-par"] is True:
+                    enabled_peers.append(peerdict["address"])
+                    
+        for traffic, flows in self.config_loader.PARTrafficTypes.items():
+            self.log.info("Print flows: %s" %flows)
+            obj = PARMetricsModule.TrafficModule(traffic, internal_command_queue,
+                                                 flows, enabled_peers)
+            self.PARModules.append(obj) 
 
 
     def _associate_filters(self, obj, cfg_section):

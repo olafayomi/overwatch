@@ -32,9 +32,11 @@ from Routing import BGPDefaultRouting
 import copy
 import grpc
 import json
-import srv6_explicit_path_pb2_grpc
-import srv6_explicit_path_pb2
 import time
+from Interface import Interface
+from DPRouteTable import DPRouteTable, DPFlowMarking
+from utils import ipv4_addrs_in_subnet, ipv6_addrs_in_subnet
+
 class Peer(PolicyObject):
     def __init__(self, name, asn, address, control_queue,
             internal_command_queue,
@@ -62,6 +64,17 @@ class Peer(PolicyObject):
         self.PAR_prefixes = []
         self.PARModules = []
         self.interfaces = []
+        self.flowobj = []
+        self.DPRouteTable = []
+
+        # Get internal interfaces from dataplane 
+        #self._get_interfaces()
+
+        # Create the custom routing tables on the dataplane
+        #self._dp_create_routetables()
+
+        # Mark flows with rules and iptables on dataplane
+        #self._dp_create_flowmarks()
 
         # XXX: List of tables we are receive routes from (needed to
         # send reload message to correct tables)
@@ -74,6 +87,12 @@ class Peer(PolicyObject):
             "debug": self._process_debug_message,
             "status": self._process_status_message,
             "par": self._process_par_update,
+            "interfaces": self._process_dp_interface,
+            "dp-tables": self._process_create_dp_table,
+            "dp-flowmarks": self._process_create_flow_objects,
+            "interface-init": self._get_interfaces,
+            #"rtable-init": self._dp_create_routetables,
+            #"req-flowmark": self._dp_create_flowmarks,
         })
 
         # routes that we are in the process of receiving from a table
@@ -194,11 +213,12 @@ class Peer(PolicyObject):
             if dest_node:
                 segments = self.routing.topology.get_segments_list(self.name, dest_node)
                 self.log.info("TESTING FOR FULL SRV6 FOR ALL ROUTES XXXXXXX: SEGMENT %s RETURNED to node %s for _process_par_update in PEER %s", segments, dest_node, self.name)
+                seg_iface = self._iface_to_segments(segments) 
                 datapath = [
                             {
                               "paths": [
                                 {
-                                  "device": self.interfaces[0],
+                                  "device": seg_iface.ifindex,
                                   "destination": str(prefix),
                                   "encapmode": "encap",
                                   "segments": segments,
@@ -254,14 +274,17 @@ class Peer(PolicyObject):
                     dest_node = edge[1]
                     break
 
+            ## XXX TODO: How to map interfaces to next-hops ???
             if dest_node:
                 segments = self.routing.topology.get_segments_list(self.name, dest_node)
                 self.log.info("TESTING FOR FULL SRV6 FOR ALL ROUTES XXXXXXX: SEGMENT %s RETURNED to node %s for _process_par_update in PEER %s", segments, dest_node, self.name)
+                seg_iface = self._iface_to_segments(segments) 
+                self.log.info("PRINTING IFACE INDEX PEERXXXX: %s" % seg_iface)
                 datapath = [
                             {
                               "paths": [
                                 {
-                                  "device": self.interfaces[0],
+                                  "device": seg_iface.ifindex,
                                   "destination": str(prefix),
                                   "encapmode": "encap",
                                   "segments": segments,
@@ -422,6 +445,9 @@ class Peer(PolicyObject):
             #stuff = message["routes"][prefix]
             #self.log.info("DIMEJI_DEBUG_PEER XXXXXXXXXXXXXXXYYYYYYYYYYYYYYYYYYYYYYYY _process_par_update: routeprefix is %s and type is: %s\n\n\n" %(stuff, type(stuff)))
             if len(message["routes"][prefix]) != 1:
+                #self.log.info("INSERTING RANDOM PRINT HERE TO DEBUG _PROCESS_PAR_UPDATE")
+                #self.log.info("DEBUG_PEER _PROCESS_PAR_UPDATE LENGTH OF PREFIX %s"  %len(message["routes"][prefix]))
+                #self.log.info("DEBUG_PEER _PROCESS_PAR_UPDATE MESSAGE PREFIX %s" %(message["routes"][prefix]))
                 return None
             route, node = message["routes"][prefix][0]
             self.log.info("DIMEJI_DEBUG_PEER XXXXXXXXXXXXXXXXXYYYYYY _process_par_update IN PEER %s: %s and route %s\n\n\n" %(self.name,node, route))
@@ -429,8 +455,8 @@ class Peer(PolicyObject):
             if self._can_import_prefix(prefix):
                 imp_routes[prefix] = [route]
                 #message["routes"][prefix]
-
         if len(imp_routes) == 0:
+            self.log.info("DIMEJI_DEBUG_PEER _process_par_update IN PEER %s, CHECKING EACH STEP OF FUNC" %self.name)
             return None
         
         if node == self.name:
@@ -442,6 +468,7 @@ class Peer(PolicyObject):
         self.par_ribs_in[message["type"]] = imp_routes
         #### Segment routing experiments
         segments = self.routing.topology.get_segments_list(self.name, node)
+        #self.log.info("DIMEJI_PEER_DEBUG _PROCESS_PAR_UPDATE PRINT SEGMENTS: %s" % segments)
 
         #no_of_nodes, list_nodes = self.routing.topology.returnGraph()
         #self.log.info("DIMEJI_DEBUG_PEER XVSGDGSDSSYXNXNXFDF _process_par_update: number of nodes from graph is %s and list of nodes in graph is %s", no_of_nodes, list_nodes)
@@ -452,22 +479,24 @@ class Peer(PolicyObject):
         else:
             self.log.info("DIMEJI_DEBUG_PEER: SEGMENT %s RETURNED to node %s for _process_par_update in PEER %s", segments, node, self.name)
 
-        if len(imp_routes) > 1:
-            return None
+
         # XXX: Set routing table for PAR in LINUX to 201
-        rtable = 201
+        rtable = self._return_table_no(message["type"])
         for prefix, routes in imp_routes.items():
             for route in routes:
                 nexthop = route.nexthop
                 self.log.info("DIMEJI_PEER_DEBUG _process_par_update NEXTHOP value in route: %s" % nexthop)
             if len(routes) > 1:
+                self.log.info("DIMEJI_DEBUG_PEER: LENGTH ROUTES IS GREATER THAN ONE")
                 return None
+
+            seg_iface = self._iface_to_segments(segments)
             datapath = [
                         {
                           "paths": [
                             {
                                #"device": "as3r2-eth1",
-                               "device": self.interfaces[0],
+                               "device": seg_iface.ifindex,
                                "destination": str(prefix),
                                "encapmode": "encap",
                                "segments": segments,
@@ -476,16 +505,169 @@ class Peer(PolicyObject):
                           ]
                         }
                        ]
-        self.internal_command_queue.put(("steer", {
-            "path": datapath[0]["paths"][0],
+            self.internal_command_queue.put(("steer", {
+                "path": datapath[0]["paths"][0],
+                "peer": {
+                          "address": self.address,
+                          "asn": self.asn,
+                        },
+                "action": "Replace"
+            }))
+        return
+        #return self._do_export_routes
+
+
+    def _iface_to_segments(self, segs):
+        for iface in self.interfaces:
+            self.log.debug("LISTING IFACES in _iface_to_segments function for peer:%s Interface:%s" %(self.name, iface))
+            if iface.internal:
+                if bool(set(iface.neighbours).intersection(segs)):
+                    return iface
+                # XXX Check if first address in segment could be in the
+                # same subnet as any of the IP addresses of an each interface
+                # get last address in segment list
+                nhop = segs[-1]
+                for addr in iface.addresses:
+                    check = ipv6_addrs_in_subnet(nhop, addr)
+                    if check:
+                        self.log.debug("COMPARING SUBNET FOR IFACE ADDRESS and FIRST SEGMENT RETURNED A MATCH for NH %s on IFACE %s on Peer %s" %(nhop, iface.ifname, self.name))
+                        return iface
+
+    def _fetch_iface_by_name(self, name):
+        for iface in self.interfaces:
+            if iface.ifname == name:
+                return iface
+        return None
+
+    def _process_dp_interface(self, message):
+        self.log.debug("TRYING SOMETHING XXXX %s" % message)
+        ifaces = message['iface']
+        internal_neighbours = self.routing.topology.getNeighbourAddr(self.name)
+        # XXX: Add OSPF IPv6 multicast addresses. All internal interfaces 
+        #      should have these addresses in their neighbour list
+        internal_neighbours.append('ff02::5')
+        internal_neighbours.append('ff02::6')
+        self.log.debug("PRINTING INTERNAL NEIGHBOURS for %s %s" %(self.name, internal_neighbours))
+        for iface in ifaces:
+            name = iface['IfName']
+            ind  = iface['IfIndex']
+            state = iface['IfState']
+            try:
+                neighs = iface['Neighbours']
+            except KeyError:
+                if name == 'lo':
+                    neighs = []
+                else:
+                    self.log.warn("Interface %s has no neighbours!!!")
+                    neighs = []
+            addrs  = iface['Addresses']
+            intf = Interface(name, ind, state, neighs, addrs)
+            if name == 'lo':
+                val = True
+            else:
+                val = bool(set(neighs).intersection(internal_neighbours))
+            intf.set_internal(val)
+            fetch_if = self._fetch_iface_by_name(name)
+            # XXX: Only add interface if it doesn't already exist!!!!
+            if fetch_if is not None:
+                fetch_if.set_internal(val)
+            else:
+                self.interfaces.append(intf)
+        self._dp_create_routetables()
+
+
+    def _process_create_dp_table(self, message):
+        tables = message
+        for tab in tables:
+            tableName, tableNo = tab
+            self.log.debug("Creating table object with %s and %s" %(tableName, tableNo))
+            # XXX: Only add table if it hasn't been added!!!!
+            fetch_tab = self._return_table_no(tableName)
+            if fetch_tab is None:
+                DPTab = DPRouteTable(tableName, tableNo) 
+                self.DPRouteTable.append(DPTab)
+        self._dp_create_flowmarks()
+    
+
+    def _return_table_no(self, table_name): 
+        for table in self.DPRouteTable:
+            self.log.debug("Getting table number for %s checking %s" %(table_name, table.name))
+            if table.name == table_name:
+                return table.num
+        return None
+
+
+    def _process_create_flow_objects(self, message):
+        dpflows = message
+        for dpflow in dpflows:
+            fwmark, proto, port, ifname, tab_no = dpflow
+            flowmarks = DPFlowMarking(fwmark, proto, port, ifname, tab_no)
+            self.flowobj.append(flowmarks) 
+
+
+    def _get_interfaces(self, message):
+        self.internal_command_queue.put(("manage-dataplane", {
             "peer": {
                       "address": self.address,
                       "asn": self.asn,
                     },
-            "action": "Replace"
+            "action": "get-interfaces",
         }))
         return
-        #return self._do_export_routes
+
+
+    def _dp_create_routetables(self):
+        par_traffic = []
+        
+        for mod in self.PARModules:
+            self.log.debug("_DP_CREATE_ROUTETABLES Appending: %s" %mod.name)
+            par_traffic.append(mod.name)
+        self.internal_command_queue.put(("configure-dataplane", {
+            "par-modules": par_traffic,
+            "peer": {
+                      "address": self.address,
+                      "asn": self.asn,
+                    },
+            "action": "create-tables"
+        }))
+        return
+
+
+    def _dp_create_flowmarks(self):
+        flows = {}
+        i = 1
+        ext_ifaces = [] 
+        for intf in self.interfaces: 
+            self.log.debug("Check for external interface: %s  %s" %(intf.ifname,intf.internal))
+            if not intf.internal:
+                ext_ifaces.append(intf.ifname)
+
+        for module in self.PARModules:
+            self.log.debug("_DP_CREATE_FLOWMARKS Appending: %s" %module.name)
+            table_no = self._return_table_no(module.name)
+            self.log.debug("_DP_CREATE_FLOWMARKS TABLENO: %s" %table_no)
+            for flow in module.flows:
+                details =[]
+                details.append(i)
+                details.append(table_no)
+                details.append(flow.protocol)
+                details.append(flow.port)
+                details.append(ext_ifaces)
+                flow.update_routetable(table_no)
+                name = flow.name
+                flows[name] = details
+                i += 1
+        self.log.debug("DEBUG DP_CREATE_FLOWMARKS FUNCXXXX Flow sent: %s" %flows) 
+
+        self.internal_command_queue.put(("configure-dataplane", {
+            "flows": flows,
+            "peer": {
+                      "address": self.address,
+                      "asn": self.asn,
+                    },
+            "action": "create-flowmark-rules"
+        }))
+        return
 
     # XXX topology messages are a pickled data structure wrapped in a protobuf
     # to make the transition easier. They should probably be made into proper
@@ -508,6 +690,7 @@ class Peer(PolicyObject):
         # update topology with new links
         self.routing.topology.createGraph(message)
 
+
     def _process_debug_message(self, message):
         self.log.debug(self)
         return None
@@ -524,10 +707,12 @@ class Peer(PolicyObject):
         # do an export here
         return self._do_export_routes
 
+
     def _reload_import_filters(self):
         if len(self.received) == 0:
             return
         self._update_tables_with_routes()
+
 
     # BGP Connection changed state, tell the controller about it
     def _state_change(self, status):

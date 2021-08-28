@@ -102,6 +102,16 @@ class Network(object):
             self.log.debug("Node %s ------> Node %s, Cost: %s, Nexthop: %s",
                            edge[0], edge[1], cost, dst_addr)
 
+    def getNeighbourAddr(self, src_node):
+        neighAddrs = []
+        edges = self.graph.out_edges(src_node)
+        for edge in edges:
+            node1, node2 = edge 
+            edge_data = self.graph.get_edge_data(node1, node2)
+            neighAddrs.append(edge_data['dest_addr'])
+        return neighAddrs
+
+
     def _all_pairs_shortest_path(self):
         nexthop = {}
         nexthop_address = {}
@@ -170,7 +180,7 @@ class Network(object):
             return self.topology[src][dst][1]
         except KeyError:
             return None
-
+    
     def returnGraph(self):
         number_of_nodes = self.graph.number_of_nodes()
         list_of_nodes = list(self.graph.nodes())

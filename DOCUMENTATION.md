@@ -399,3 +399,9 @@ apt-get remove  openvswitch-testcontroller openvswitch-common openvswitch-pki op
 * Create new spreadsheet and share the spreadsheet with edit permission with the ```client_email``` in the credentials file.
 
 * Run scripts to upload CSV files to google spreadsheet.
+
+* Connect to vtysh
+```
+telnet localhost bgpd
+telnet localhost ospf6d
+```

@@ -48,6 +48,8 @@ import exabgpapi_pb2 as exabgpapi
 import exabgpapi_pb2_grpc as exaBGPChannel
 import srv6_explicit_path_pb2_grpc
 import srv6_explicit_path_pb2
+import dataplane_pb2
+import dataplaneapi_pb2_grpc
 
 from google.protobuf.any_pb2 import Any
 from google.protobuf.timestamp_pb2 import Timestamp
@@ -94,6 +96,7 @@ class Controller(exaBGPChannel.ControllerInterfaceServicer,
         self.PARModules = self.conf.PARModules
         self.datapathID = self.conf.datapathID
         self.datapath = {}
+       
         #self.initial_par = 0
 
         # all peers start down
@@ -194,6 +197,9 @@ class Controller(exaBGPChannel.ControllerInterfaceServicer,
             self.log.debug("Starting PARModule %s" % parmodule.name)
             parmodule.daemon = True
             parmodule.start()
+            for f in parmodule.flows:
+                self.log.debug("%s: %s, %s, %s" %(parmodule.name, f.name, f.protocol, f.port))
+
 
         self.log.info("Starting BGP speakers")
         for speaker in self.bgpspeakers:
@@ -235,49 +241,20 @@ class Controller(exaBGPChannel.ControllerInterfaceServicer,
                 #    self.log.debug("PEER: %s sending dp message response : %s" %(peer.name,response))
 
             peer.start()
+            for module in peer.PARModules:
+                for f in module.flows:
+                    self.log.debug("(%s %s): %s  %s" %(peer.name, module.name, f.name, f.protocol))
 
         self.log.info("Initiating connection to the datapath of PAR-enabled peers")
         for (addr, port) in self.datapathID:
             self.log.info(" Address: %s, Port: %s" %(addr, port))
             #dpchannel = grpc.insecure_channel(target=addr+':'+str(port))
             dpchannel = grpc.insecure_channel("[%s]:%s" %(addr, str(port)))
-            dpstub = srv6_explicit_path_pb2_grpc.SRv6ExplicitPathStub(dpchannel)
-            self.datapath[addr] = dpstub
+            srv6_stub = srv6_explicit_path_pb2_grpc.SRv6ExplicitPathStub(dpchannel)
+            dp_state_stub = dataplaneapi_pb2_grpc.DataplaneStateStub(dpchannel)
+            dp_config_stub = dataplaneapi_pb2_grpc.ConfigureDataplaneStub(dpchannel)
+            self.datapath[addr] = [srv6_stub, dp_state_stub, dp_config_stub, 'NOT CONNECTED']
 
-        #self.log.debug("Sending message to datapath to test")
-        #for addr in self.datapath: 
-        #    stub = self.datapath[addr]
-        #    path_request = srv6_explicit_path_pb2.SRv6EPRequest()
-        #    path = path_request.path.add() 
-        #    path.destination = "2001:df15::/48"
-        #    path.device = "veth0"
-        #    path.encapmode = "inline"
-        #    srv6_segment = path.sr_path.add()
-        #    srv6_segment.segment = "2001:df9::1"
-        #    srv6_segment = path.sr_path.add()
-        #    srv6_segment.segment = "2001:df8::1"
-        #    response = stub.Create(path_request, metadata=([('ip','192.168.122.43')]))
-        #    self.log.debug("Response from dp: %s" %response)
-
-        
-
-        #dpchannel = grpc.insecure_channel(target='192.168.122.172:50055')
-        #dpstub = srv6_explicit_path_pb2_grpc.SRv6ExplicitPathStub(dpchannel)
-        #path_request = srv6_explicit_path_pb2.SRv6EPRequest()
-        #path = path_request.path.add()
-        ### Set destination, device, encapmode
-        #path.destination = "2001:df15::/48"
-        #path.device = "veth0"
-        #path.encapmode = "inline"
-        #srv6_segment = path.sr_path.add()
-        #srv6_segment.segment = "2001:df9::1"
-        #srv6_segment = path.sr_path.add()
-        #srv6_segment.segment = "2001:df8::1"
-        #response = dpstub.Create(path_request, metadata=([('ip', "192.168.122.43")]))
-        #self.log.debug("Response from dp: %s" %response)
-        
-
-        
         self.log.info("Starting routing tables")
         for table in self.tables:
             self.log.debug("Starting RouteTable %s" % table.name)
@@ -293,6 +270,21 @@ class Controller(exaBGPChannel.ControllerInterfaceServicer,
 
         self.log.info("Starting listener for command messages")
         self.control_connection.start()
+
+        #self.log.debug("Everything should be setup hopefully by now, invite Peer processes to send requests!!!!!!!!!")
+        #self.log.debug("Nudging Peer processes for Interface request!!!")
+        #for peer in self.peers:
+        #    message = "interface"
+        #    peer.mailbox.put(("interface-init", message))
+
+        #for peer in self.peers:
+        #    message = "rtables"
+        #    peer.mailbox.put(("rtable-init", message))
+
+        #for peer in self.peers:
+        #    message = "flowmarks"
+        #    peer.mailbox.put(("req-flowmark", message))
+
 
         while True:
             msgtype, command = self.internal_command_queue.get()
@@ -318,9 +310,14 @@ class Controller(exaBGPChannel.ControllerInterfaceServicer,
             elif msgtype == "steer":
                 self.process_update_datapath(command)
                 self.log.debug("DIMEJI CONTROLLER received PAR steer message on internal_command_queue %s" %command)
+            elif msgtype == "manage-dataplane":
+                self.process_dataplane_mgmt(command)
+                self.log.debug("Controller has received a dataplane request from a peer process on internal_command_queue %s" %command)
+            elif msgtype == "configure-dataplane": 
+                self.process_config_dataplane(command)
+                self.log.debug("Controller has received a dataplane configuration request from a peer process on internal_command_queue %s" %command)
             else:
                 self.log.warning("Ignoring unkown message type %s " % msgtype)
-	    
 
     def SendUpdate(self, request, context):
         metadata = dict(context.invocation_metadata())
@@ -353,6 +350,18 @@ class Controller(exaBGPChannel.ControllerInterfaceServicer,
             return
         speaker.mailbox.put(("peercap", open_msg))
         self.log.info("Open message: %s" %open_msg)
+        peer_as = open_msg["peerAs"]
+        peer_address = open_msg["neighborAddress"]
+        stub_list = self.datapath[peer_address]
+        status = stub_list[3]
+        if status != 'CONNECTED':
+            peer = self._get_peer(peer_as, peer_address)
+            self.log.debug("Everything should be setup hopefully by now, invite process for Peer %s to send requests!!!!!!!!!" %peer.name)
+            self.log.debug("Nudging process for Peer %s  for Interface request!!!" %peer.name )
+            message = "interface"
+            peer.mailbox.put(("interface-init", message))
+            #message = "rtables"
+            #peer.mailbox.put(("rtable-init", message))
         return Empty()
 
     def SendPeerKeepalive(self, request, context):
@@ -367,6 +376,19 @@ class Controller(exaBGPChannel.ControllerInterfaceServicer,
             return
         speaker.mailbox.put(("healthcheck", state))
         self.log.debug("Keepalive message: %s" %state)
+        if peer_address in self.datapath:
+            stub_list = self.datapath[peer_address]
+            status = stub_list[3]
+            if status != 'CONFIGURED':
+                peer = self._get_peer(peer_as, peer_address)
+                self.log.info("DATAPLANE on %s still not connected or fully configured, trying again!!!!" %peer.name)
+                self.log.debug("Everything should be setup hopefully by now, invite process for Peer %s to send requests!!!!!!!!!" %peer.name)
+                self.log.debug("Nudging process for Peer %s  for Interface request!!!" %peer.name )
+                message = "interface"
+                peer.mailbox.put(("interface-init", message))
+                #message = "rtables"
+                #peer.mailbox.put(("rtable-init", message))
+            
         return Empty()
 
     def SendUpdateEoR(self, request, context):
@@ -407,6 +429,7 @@ class Controller(exaBGPChannel.ControllerInterfaceServicer,
             peer_asn = message["peer"]["asn"]
             peer_address = message["peer"]["address"]
             target = self._get_peer(peer_asn, peer_address)
+
         elif "table" in message:
             #self.log.info("DIMEJI_CONTROLLER_DEBUG process_control_message for table is %s" % message)
             target = self._get_table(message["table"]["name"])
@@ -418,16 +441,130 @@ class Controller(exaBGPChannel.ControllerInterfaceServicer,
             return
 
         if "action" in message:
+            self.log.info("DIMEJI_CONTROLLER_DEBUG process_control_message is %s" % message)
             target.mailbox.put(
                     (message["action"], message.get("arguments", None))
             )
-            
+
+    def process_dataplane_mgmt(self, message):
+        peer_addr = message["peer"]["address"]
+        if message["action"] == "get-interfaces": 
+            if peer_addr in self.datapath:
+                stub_list = self.datapath[peer_addr]
+                stub = stub_list[1]
+                iface_req = Empty()
+                try:
+                    response = stub.GetIfaces(iface_req,metadata=([('ip', '2001:df40::1')]))
+                except grpc.RpcError as e:
+                    if grpc.StatusCode.UNIMPLEMENTED == e.code():
+                        self.log.debug("WARNING: Dataplane on %s is not ready" %peer_addr)
+                        return
+                response_dict = MessageToDict(response)
+                #self.datapath[peer_addr][3] = 'CONNECTED'
+                peer = self._get_peer(self.asn, peer_addr)
+                if peer:
+                    self.log.debug("PROCESS_DATAPLANE_MGMT doing putting message for %s"  % peer_addr)
+                    self.log.debug("PROCESS_DATAPLANE_MGMT XXXX  INTENDED RESPONSE: %s" %response_dict)
+                    peer.mailbox.put(("interfaces", response_dict))
+                    self.datapath[peer_addr][3] = 'CONNECTED'
+
+        #if message["action"] == 
+
+
+    def process_config_dataplane(self, message): 
+        peer_addr = message["peer"]["address"]
+        stub_list = self.datapath[peer_addr]
+        stub = stub_list[2]
+        status = stub_list[3]
+
+        if status == 'NOT CONNECTED':
+            self.log.debug("WARNING: Not proceeding with request for dataplane on %s" %peer_addr)
+            return
+    
+        if message["action"] == "create-tables":
+            if peer_addr in self.datapath:
+                partrafficmod = message["par-modules"]
+                rtablecreate = dataplane_pb2.PARFlows() 
+                rtablecreate.flow.extend(partrafficmod)
+                response = stub.CreateRouteTable(rtablecreate)
+                if not response.CreatedAll:
+                    self.log.warn("DP on PEER:%s unable to create tables for %s" %(peer_addr,rtablecreate.flow))
+                dp_tables = []
+                for table in response.created:
+                    dp_tables.append((table.tableName, table.tableNo))
+                peer = self._get_peer(self.asn, peer_addr)
+                if peer:
+                    self.log.debug("SENDING DP_TABLES!!!! :%s" %dp_tables)
+                    if len(dp_tables) >= 0:
+                        peer.mailbox.put(("dp-tables", dp_tables))
+
+        if message["action"] == "create-flowmark-rules":
+            if peer_addr in self.datapath:
+                flows = message["flows"]
+                self.log.debug("CONTROLLER process_config_dataplane PROCESSING flows message from datapath: %s" %flows)
+                fwmark_req = dataplane_pb2.RequestFlowMark()
+                iprules = []
+                for name, details in flows.items():
+                    if details[1] is None:
+                        self.log.debug("PAR routetable number not yet set!!!")
+                        return
+                    iprule = dataplane_pb2.IPRule()
+                    iprule.fwmark = details[0]
+                    iprule.table = details[1]
+                    iprules.append(iprule)
+                fwmark_req.rule.extend(iprules)
+                try:
+                    fwmark_res = stub.FlowMark(fwmark_req)
+                except grpc.RpcError as e:
+                    if grpc.StatusCode.UNKNOWN == e.code():
+                        self.log.debug("WARNING: Dataplane error on %s" %peer_addr)
+                        return
+                
+                if not fwmark_res.applied:
+                    self.log.warn("DP on PEER:%s unable to create these IP rules: %s" %(peer_addr,fwmark_res.failed))
+                # Add iptable rules for successful ip rules
+                ip6table_req = dataplane_pb2.RequestIP6TableRule() 
+                ip6tables = []
+                for name, details in flows.items():
+                    for rule in fwmark_res.successful: 
+                        if rule.fwmark == details[0]:
+                            for iface in details[4]:
+                                ip6table = dataplane_pb2.IP6TableRule() 
+                                ip6table.intName = iface
+                                ip6table.protocol = details[2]
+                                ip6table.DPort = details[3]
+                                ip6table.FwmarkNo = rule.fwmark
+                                ip6tables.append(ip6table)
+                ip6table_req.rules.extend(ip6tables)
+                self.log.warn("IPtable rule number is %s" %len(ip6tables))
+                self.log.warn("IPtables rules to be send: %s" %ip6tables)
+                ip6table_res = stub.AddIp6tableRule(ip6table_req)
+
+                if not ip6table_res.ip6tablecreated:
+                    self.log.warn("DP on PEER:%s unable to create these iptable rules: %s" %(pper_addr, ip6table_res.failed))
+                dpflows = []
+                for ip6tab in ip6table_res.successful: 
+                    for name, details in flows.items():
+                        if ip6tab.FwmarkNo == details[0]:
+                            tab_no = details[1] 
+
+                    tup = (ip6tab.FwmarkNo, ip6tab.protocol, ip6tab.DPort, ip6tab.intName, tab_no)
+                    dpflows.append(tup)
+                peer = self._get_peer(self.asn, peer_addr) 
+                if peer:
+                    self.log.debug("SENDING DPFLOWS!!!!! :%s" %dpflows)
+                    if len(dpflows) >= 0:
+                        peer.mailbox.put(("dp-flowmarks", dpflows))
+                        self.datapath[peer_addr][3] = 'CONFIGURED'
+
+        
     def process_update_datapath(self, message):
         self.log.info("DIMEJI_CONTROLLER_DEBUG_BEGIN_PROCESSING process_update_datapath message is %s" %message)
         peer_addr = message["peer"]["address"]
         if message["action"] == "Replace":
             if peer_addr in self.datapath:
-                stub = self.datapath[peer_addr]
+                stub_list = self.datapath[peer_addr]
+                stub = stub_list[0]
                 path_request = srv6_explicit_path_pb2.SRv6EPRequest()
                 path = path_request.path.add() 
                 path.destination = message["path"]["destination"]
@@ -450,7 +587,8 @@ class Controller(exaBGPChannel.ControllerInterfaceServicer,
         
         if message["action"] == "Remove":
             if peer_addr in self.datapath:
-                stub = self.datapath[peer_addr]
+                stub_list = self.datapath[peer_addr]
+                stub = stub_list[0]
                 path_request = srv6_explicit_path_pb2.SRv6EPRequest()
                 path = path_request.path.add() 
                 path.destination = message["path"]["destination"]

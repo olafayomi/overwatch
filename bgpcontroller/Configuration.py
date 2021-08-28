@@ -91,16 +91,13 @@ class ConfigLoader(object):
 
         if "performance-aware" in config:
             performance_aware = config["performance-aware"]
+            self.PARTrafficTypes = {}
             if isinstance(performance_aware, dict) and \
                 (len(performance_aware) != 0):
-                for metric, prefixes in performance_aware.items():
-                    if metric == "bandwidth":
-                        self.bandwidth = prefixes
-
-                    if metric == "latency":
-                        self.latency = prefixes
+                for traffictype, flows in performance_aware.items():
+                    self.PARTrafficTypes[traffictype] = flows['flows']
             else:
-                raise Exception("Config: No performance-aware metrics and prefixes defined in file %s" % conf_file)
+                raise Exception("Config: No performance-aware traffic defined in file %s" % conf_file)
 
 
     def relative_path(self, filename):
@@ -124,10 +121,8 @@ class ConfigLoader(object):
         del self.filters
         del self.bgpspeakers
         del self.local_topology
-        if hasattr(self, 'latency'):
-            del self.latency
-        if hasattr(self, 'bandwidth'):
-            del self.bandwidth
+        if hasattr(self, 'PARTrafficTypes'):
+            del self.PARTrafficTypes
 
 
 class ConfigValidator(object):
