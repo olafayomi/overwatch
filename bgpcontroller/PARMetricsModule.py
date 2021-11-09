@@ -101,17 +101,17 @@ class BasePARModule(Process):
                 poll.register(perfpipe, select.POLLIN)
                 try:
                     while True:
-                        curr_time = time.time()
-                        if self.last_performed != 0:
-                            time_diff = curr_time - self.last_performed
-                            if time_diff > 120:
-                                best_routes = self._send_latest_best_route()
-                                self.command_queue.put(("par-update", {
-                                    "routes": best_routes,
-                                    "type": self.name,
-                                }))
+                        #curr_time = time.time()
+                        #if self.last_performed != 0:
+                        #    time_diff = curr_time - self.last_performed
+                        #    if time_diff > 120:
+                        #        best_routes = self._send_latest_best_route()
+                        #        self.command_queue.put(("par-update", {
+                        #            "routes": best_routes,
+                        #            "type": self.name,
+                        #        }))
                         if (perfpipe, select.POLLIN) in poll.poll(500): 
-                            self.log.info("PARMetricsModule received message from IPMininet!!!")
+                            self.log.info("PARMetricsModule %s received message from IPMininet!!!" %self.name)
                             msg_size_bytes = os.read(perfpipe, 4)
                             msg_size = decode_msg_size(msg_size_bytes) 
                             msg_content = os.read(perfpipe, msg_size)
@@ -119,13 +119,13 @@ class BasePARModule(Process):
                             exitnode = perfnode.FromString(msg_content)
                             node = exitnode.name
                             nexthop = exitnode.address
-                            #self.best_routes = self._fetch_route(node, nexthop)
-                            #if len(self.best_routes) != 0: 
-                            #    self.command_queue.put(("par-update", {
-                            #        "routes": self.best_routes,
-                            #        "type": self.name,
-                            #    }))
-                            #    self.log.info("PARMetricsModule RUN RECEIVED PERFOMANCE UPDATE AND NOTIFIED CONTROLLER TO UPDATE DATAPLANE WITH: %s" %self.best_routes)
+                            self.best_routes = self._fetch_route(node, nexthop)
+                            if len(self.best_routes) != 0: 
+                                self.command_queue.put(("par-update", {
+                                    "routes": self.best_routes,
+                                    "type": self.name,
+                                }))
+                                self.log.info("PARMetricsModule RUN RECEIVED PERFOMANCE UPDATE AND NOTIFIED CONTROLLER TO UPDATE DATAPLANE WITH: %s" %self.best_routes)
                         else:
                             pass
 

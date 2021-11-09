@@ -405,3 +405,14 @@ apt-get remove  openvswitch-testcontroller openvswitch-common openvswitch-pki op
 telnet localhost bgpd
 telnet localhost ospf6d
 ```
+
+* Ways to add loss and delay with tc and netem to an interface at the same time
+
+```
+tc qdisc change dev s3-eth2 root netem delay 30ms loss 5% 
+# Or this approach
+
+tc qdisc add dev eth0 root
+tc qdisc add dev eth0 root handle 1: netem delay 30ms
+tc qdisc add dev eth0 root handle 2: netem loss 5%
+```
