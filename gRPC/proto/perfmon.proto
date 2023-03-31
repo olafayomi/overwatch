@@ -6,5 +6,41 @@ package perfmon;
 message ExitNode {
   string name = 1;
   string address = 2;
-  uint32 delay = 3;
+  float delay = 3;
+  float loss = 4;
 }
+
+// Performance message to PARMetricsModule containing
+// measurements via the available ExitNodes to a 
+// destination
+message PerformanceMsg {
+  repeated ExitNode node = 1;
+}
+
+// Message to PARMetricsModule containing
+// measurements via available ExitNodes
+message DstMsmMsg {
+  string DstAddr = 1;
+  repeated ExitNode node = 2;
+}
+
+// Send multiple destinations in one message
+message DstMsmMsgs {
+  repeated DstMsmMsg dstMsm = 1;
+}
+
+// Client destinations to perform measurements
+message Destinations {
+  repeated string address = 1;
+}
+
+// RTT Measurements for each destination
+message DstRTT {
+  string address = 1;
+  repeated float rtt = 2;
+}
+
+// RTT measurements messages for a set destinations
+message DstRTTMsgs {
+  repeated DstRTT dstrtt = 1;
+} 

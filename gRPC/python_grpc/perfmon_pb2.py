@@ -19,7 +19,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto3',
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n\rperfmon.proto\x12\x07perfmon\"8\n\x08\x45xitNode\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x0f\n\x07\x61\x64\x64ress\x18\x02 \x01(\t\x12\r\n\x05\x64\x65lay\x18\x03 \x01(\rb\x06proto3'
+  serialized_pb=b'\n\rperfmon.proto\x12\x07perfmon\"F\n\x08\x45xitNode\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x0f\n\x07\x61\x64\x64ress\x18\x02 \x01(\t\x12\r\n\x05\x64\x65lay\x18\x03 \x01(\x02\x12\x0c\n\x04loss\x18\x04 \x01(\x02\"1\n\x0ePerformanceMsg\x12\x1f\n\x04node\x18\x01 \x03(\x0b\x32\x11.perfmon.ExitNode\"=\n\tDstMsmMsg\x12\x0f\n\x07\x44stAddr\x18\x01 \x01(\t\x12\x1f\n\x04node\x18\x02 \x03(\x0b\x32\x11.perfmon.ExitNode\"0\n\nDstMsmMsgs\x12\"\n\x06\x64stMsm\x18\x01 \x03(\x0b\x32\x12.perfmon.DstMsmMsg\"\x1f\n\x0c\x44\x65stinations\x12\x0f\n\x07\x61\x64\x64ress\x18\x01 \x03(\t\"&\n\x06\x44stRTT\x12\x0f\n\x07\x61\x64\x64ress\x18\x01 \x01(\t\x12\x0b\n\x03rtt\x18\x02 \x03(\x02\"-\n\nDstRTTMsgs\x12\x1f\n\x06\x64strtt\x18\x01 \x03(\x0b\x32\x0f.perfmon.DstRTTb\x06proto3'
 )
 
 
@@ -49,8 +49,15 @@ _EXITNODE = _descriptor.Descriptor(
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
       name='delay', full_name='perfmon.ExitNode.delay', index=2,
-      number=3, type=13, cpp_type=3, label=1,
-      has_default_value=False, default_value=0,
+      number=3, type=2, cpp_type=6, label=1,
+      has_default_value=False, default_value=float(0),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='loss', full_name='perfmon.ExitNode.loss', index=3,
+      number=4, type=2, cpp_type=6, label=1,
+      has_default_value=False, default_value=float(0),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
@@ -67,10 +74,226 @@ _EXITNODE = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=26,
-  serialized_end=82,
+  serialized_end=96,
 )
 
+
+_PERFORMANCEMSG = _descriptor.Descriptor(
+  name='PerformanceMsg',
+  full_name='perfmon.PerformanceMsg',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='node', full_name='perfmon.PerformanceMsg.node', index=0,
+      number=1, type=11, cpp_type=10, label=3,
+      has_default_value=False, default_value=[],
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=98,
+  serialized_end=147,
+)
+
+
+_DSTMSMMSG = _descriptor.Descriptor(
+  name='DstMsmMsg',
+  full_name='perfmon.DstMsmMsg',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='DstAddr', full_name='perfmon.DstMsmMsg.DstAddr', index=0,
+      number=1, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='node', full_name='perfmon.DstMsmMsg.node', index=1,
+      number=2, type=11, cpp_type=10, label=3,
+      has_default_value=False, default_value=[],
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=149,
+  serialized_end=210,
+)
+
+
+_DSTMSMMSGS = _descriptor.Descriptor(
+  name='DstMsmMsgs',
+  full_name='perfmon.DstMsmMsgs',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='dstMsm', full_name='perfmon.DstMsmMsgs.dstMsm', index=0,
+      number=1, type=11, cpp_type=10, label=3,
+      has_default_value=False, default_value=[],
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=212,
+  serialized_end=260,
+)
+
+
+_DESTINATIONS = _descriptor.Descriptor(
+  name='Destinations',
+  full_name='perfmon.Destinations',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='address', full_name='perfmon.Destinations.address', index=0,
+      number=1, type=9, cpp_type=9, label=3,
+      has_default_value=False, default_value=[],
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=262,
+  serialized_end=293,
+)
+
+
+_DSTRTT = _descriptor.Descriptor(
+  name='DstRTT',
+  full_name='perfmon.DstRTT',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='address', full_name='perfmon.DstRTT.address', index=0,
+      number=1, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='rtt', full_name='perfmon.DstRTT.rtt', index=1,
+      number=2, type=2, cpp_type=6, label=3,
+      has_default_value=False, default_value=[],
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=295,
+  serialized_end=333,
+)
+
+
+_DSTRTTMSGS = _descriptor.Descriptor(
+  name='DstRTTMsgs',
+  full_name='perfmon.DstRTTMsgs',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='dstrtt', full_name='perfmon.DstRTTMsgs.dstrtt', index=0,
+      number=1, type=11, cpp_type=10, label=3,
+      has_default_value=False, default_value=[],
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=335,
+  serialized_end=380,
+)
+
+_PERFORMANCEMSG.fields_by_name['node'].message_type = _EXITNODE
+_DSTMSMMSG.fields_by_name['node'].message_type = _EXITNODE
+_DSTMSMMSGS.fields_by_name['dstMsm'].message_type = _DSTMSMMSG
+_DSTRTTMSGS.fields_by_name['dstrtt'].message_type = _DSTRTT
 DESCRIPTOR.message_types_by_name['ExitNode'] = _EXITNODE
+DESCRIPTOR.message_types_by_name['PerformanceMsg'] = _PERFORMANCEMSG
+DESCRIPTOR.message_types_by_name['DstMsmMsg'] = _DSTMSMMSG
+DESCRIPTOR.message_types_by_name['DstMsmMsgs'] = _DSTMSMMSGS
+DESCRIPTOR.message_types_by_name['Destinations'] = _DESTINATIONS
+DESCRIPTOR.message_types_by_name['DstRTT'] = _DSTRTT
+DESCRIPTOR.message_types_by_name['DstRTTMsgs'] = _DSTRTTMSGS
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
 
 ExitNode = _reflection.GeneratedProtocolMessageType('ExitNode', (_message.Message,), {
@@ -79,6 +302,48 @@ ExitNode = _reflection.GeneratedProtocolMessageType('ExitNode', (_message.Messag
   # @@protoc_insertion_point(class_scope:perfmon.ExitNode)
   })
 _sym_db.RegisterMessage(ExitNode)
+
+PerformanceMsg = _reflection.GeneratedProtocolMessageType('PerformanceMsg', (_message.Message,), {
+  'DESCRIPTOR' : _PERFORMANCEMSG,
+  '__module__' : 'perfmon_pb2'
+  # @@protoc_insertion_point(class_scope:perfmon.PerformanceMsg)
+  })
+_sym_db.RegisterMessage(PerformanceMsg)
+
+DstMsmMsg = _reflection.GeneratedProtocolMessageType('DstMsmMsg', (_message.Message,), {
+  'DESCRIPTOR' : _DSTMSMMSG,
+  '__module__' : 'perfmon_pb2'
+  # @@protoc_insertion_point(class_scope:perfmon.DstMsmMsg)
+  })
+_sym_db.RegisterMessage(DstMsmMsg)
+
+DstMsmMsgs = _reflection.GeneratedProtocolMessageType('DstMsmMsgs', (_message.Message,), {
+  'DESCRIPTOR' : _DSTMSMMSGS,
+  '__module__' : 'perfmon_pb2'
+  # @@protoc_insertion_point(class_scope:perfmon.DstMsmMsgs)
+  })
+_sym_db.RegisterMessage(DstMsmMsgs)
+
+Destinations = _reflection.GeneratedProtocolMessageType('Destinations', (_message.Message,), {
+  'DESCRIPTOR' : _DESTINATIONS,
+  '__module__' : 'perfmon_pb2'
+  # @@protoc_insertion_point(class_scope:perfmon.Destinations)
+  })
+_sym_db.RegisterMessage(Destinations)
+
+DstRTT = _reflection.GeneratedProtocolMessageType('DstRTT', (_message.Message,), {
+  'DESCRIPTOR' : _DSTRTT,
+  '__module__' : 'perfmon_pb2'
+  # @@protoc_insertion_point(class_scope:perfmon.DstRTT)
+  })
+_sym_db.RegisterMessage(DstRTT)
+
+DstRTTMsgs = _reflection.GeneratedProtocolMessageType('DstRTTMsgs', (_message.Message,), {
+  'DESCRIPTOR' : _DSTRTTMSGS,
+  '__module__' : 'perfmon_pb2'
+  # @@protoc_insertion_point(class_scope:perfmon.DstRTTMsgs)
+  })
+_sym_db.RegisterMessage(DstRTTMsgs)
 
 
 # @@protoc_insertion_point(module_scope)

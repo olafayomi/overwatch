@@ -279,7 +279,7 @@ class Peer(PolicyObject):
                 segments = self.routing.topology.get_segments_list(self.name, dest_node)
                 self.log.info("TESTING FOR FULL SRV6 FOR ALL ROUTES XXXXXXX: SEGMENT %s RETURNED to node %s for _process_par_update in PEER %s", segments, dest_node, self.name)
                 seg_iface = self._iface_to_segments(segments) 
-                self.log.info("PRINTING IFACE INDEX PEERXXXX: %s" % seg_iface)
+                self.log.info("PRINTING IFACE INDEX PEERXXXX in %s: %s" % (self.name,seg_iface))
                 datapath = [
                             {
                               "paths": [
@@ -300,7 +300,16 @@ class Peer(PolicyObject):
                             },
                     "action": "Replace"
                 }))
-            
+
+                ###: Add initial routes
+                ### XXX: 20230306
+                message = (("set-initial", { prefix: (route, dest_node),
+                                            "segments": segments,
+                                            "from": self.name }))
+                for parmodule in self.PARModules:
+                    self.log.debug("PEER %s sending DEFAULT/INITIAL route to PAR module" %(self.name))
+                    parmodule.mailbox.put(message)
+
             ### XXX: Disable adding routes to PAR modules
             ### XXX: Done 20201119
             #if prefix in self.PAR_prefixes:
@@ -547,6 +556,8 @@ class Peer(PolicyObject):
         #      should have these addresses in their neighbour list
         internal_neighbours.append('ff02::5')
         internal_neighbours.append('ff02::6')
+        ## Add this to for Eval debug
+        internal_neighbours.append('100::4')
         self.log.debug("PRINTING INTERNAL NEIGHBOURS for %s %s" %(self.name, internal_neighbours))
         for iface in ifaces:
             name = iface['IfName']

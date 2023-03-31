@@ -416,3 +416,28 @@ tc qdisc add dev eth0 root
 tc qdisc add dev eth0 root handle 1: netem delay 30ms
 tc qdisc add dev eth0 root handle 2: netem loss 5%
 ```
+
+* Show tc and netem statistics on an interfae 
+```
+tc -s qdisc show dev s1-eth2
+```
+
+* Delete qdisc on interface with tc
+
+```
+tc qdisc del dev as4r2-eth2 root
+```
+
+* Add or change HTB bandwidth on interface
+
+```
+tc qdisc add dev as4r2-eth2 root handle 5:1 htb default 1
+tc class add dev as4r2-eth2 parent 5:1 classid 5:1 htb rate 500Mbit ceil 500Mbit burst 15250b cburst 1500b
+tc class change dev as4r2-eth2 parent 5:1 classid 5:1 htb rate 500Mbit ceil 500Mbit burst 15250b cburst 1500b
+```
+
+* Add or change TBF bandwidth on interface 
+
+```
+tc qdisc change dev as4r1-eth2 root tbf 150mbit burst 50mbit limit 2000
+```
