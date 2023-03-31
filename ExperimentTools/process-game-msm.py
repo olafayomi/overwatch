@@ -26,6 +26,11 @@ if __name__ == "__main__":
                            help='Game threshold to accepted or reject client in ms',
                            type=int,
                            default=60)
+    argParser.add_argument('-p', dest='percentile',
+                           help='Percentile RTT to accept or reject clients',
+                           type=int,
+                           default=90)
+
 
     args = argParser.parse_args()
 
@@ -61,9 +66,9 @@ if __name__ == "__main__":
                 maxRTT = np.max(rtts)
                 medRTT = np.median(rtts)
                 avgRTT = np.mean(rtts)
-                percentile = np.percentile(rtts, 90)
+                percentile = np.percentile(rtts, args.percentile)
                 duration = float(timestamp[-1]) - float(timestamp[0])
-                if percentile <= args.threshold:
+                if duration > 299.4:
                     accepted = True
                 else:
                     accepted = False
