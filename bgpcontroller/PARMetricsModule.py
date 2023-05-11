@@ -45,8 +45,9 @@ from utils import get_address_family, ipv6_addr_is_subset,\
      ipv4_addr_is_subset
 from Flow import Flow
 from socket import AF_INET, AF_INET6
-from decimal import Decimal 
+from decimal import Decimal
 from decimal import getcontext
+
 
 def decode_msg_size(size_bytes: bytes) -> int:
     return struct.unpack("<I", size_bytes)[0]
@@ -61,12 +62,12 @@ class BasePARModule(Process):
         self.command_queue = command_queue
         self.flows = []
 
-        self.prefixes = set() 
+        self.prefixes = set()
         self.thresholds = {}
         for flowtype, desc in flows.items():
-            print("Desc: %s" %desc)
-            print("desc['prefixes']: %s" %desc['prefixes'])
-            flow = Flow(flowtype, desc['protocol'],desc['port'], desc['prefixes'])
+            print("Desc: %s" % desc)
+            print("desc['prefixes']: %s" % desc['prefixes'])
+            flow = Flow(flowtype, desc['protocol'], desc['port'], desc['prefixes'])
             if 'threshold' in desc:
                 self.thresholds[flowtype] = float(desc['threshold'])
             else:
@@ -74,7 +75,7 @@ class BasePARModule(Process):
             self.flows.append(flow)
             for prefix in desc['prefixes']:
                 self.prefixes.add(Prefix(prefix))
-            print("Threshold: %s" %self.thresholds)
+            print("Threshold: %s" % self.thresholds)
         self.routes = {prefix: set() for prefix in self.prefixes}
         self.daemon = True
         self.enabled_peers = peer_addrs
@@ -83,6 +84,8 @@ class BasePARModule(Process):
         self.best_routes = {}
         self.counter = 0
         self.current_routes = {}
+        self.clients = set()
+        self.client_dst_msm = {}
         self.actions = {
             "add": self._process_add_route,
             "remove": self._process_remove_route,
@@ -120,107 +123,164 @@ class BasePARModule(Process):
                         #            "routes": best_routes,
                         #            "type": self.name,
                         #        }))
-                        if (perfpipe, select.POLLIN) in poll.poll(500): 
-                            self.log.info("PARMetricsModule %s received message from IPMininet!!!" %self.name)
+                        if (perfpipe, select.POLLIN) in poll.poll(500):
+                            self.log.info("PARMetricsModule %s received message from IPMininet!!!" % self.name)
                             msg_size_bytes = os.read(perfpipe, 4)
-                            msg_size = decode_msg_size(msg_size_bytes) 
+                            msg_size = decode_msg_size(msg_size_bytes)
                             msg_content = os.read(perfpipe, msg_size)
-                            #perfnode = perfmsg.ExitNode() 
+                            #perfnode = perfmsg.ExitNode()
                             #exitnode = perfnode.FromString(msg_content)
                             #node = exitnode.name
                             #nexthop = exitnode.address
                             # Compare paths and make decision to switch here:
-                            client_dst = []
                             msmMsg = perfmsg.DstMsmMsgs()
                             msms = msmMsg.FromString(msg_content)
+                            if len(self.clients) == 0:
+                                self.client_dst_msm['time'] = time.monotonic()
                             for dstPerfMsg in msms.dstMsm:
-                                dstAddr = dstPerfMsg.DstAddr 
-                                nodes = []
-                                delay_l = []
-                                best_route = {}
+                                dstAddr = dstPerfMsg.DstAddr
+                                #delay_l = []
+                                nodes_m = []
                                 for exitnode in dstPerfMsg.node:
                                     node = exitnode.name
                                     nexthop = exitnode.address
-                                    delay = round(exitnode.delay,4)
-                                    delay_l.append(delay)
-                                    nodes.append((node, nexthop, delay))
-                                self.log.info("PARMetricsModule received measurements for DST:%s from nodes: %s" % (dstAddr, nodes))
+                                    #delay = round(exitnode.delay, 4)
+                                    #delay_l.append(delay)
+                                    estDelay = round(exitnode.estDelay, 4)
+                                    nodes_m.append((node, nexthop, estDelay))
+                                if dstAddr not in self.clients:
+                                    self.clients.add(dstAddr)
+                                    self.client_dst_msm[dstAddr] = {}
+                                    for n in nodes_m:
+                                        name, nh, estD = n
+                                        self.client_dst_msm[dstAddr][name] = {}
+                                        self.client_dst_msm[dstAddr][name]['estDelay'] = estD
+                                        self.client_dst_msm[dstAddr][name]['PrvEstDelay'] = estD
+                                        #self.client_dst_msm[dstAddr][name]['delay'] = [d]
+                                        self.client_dst_msm[dstAddr][name]['nexthop'] = nh
+                                    #self.log.info("PARMetricsModule self.client_dst_msm: %s" % self.client_dst_msm)
+                                else:
+                                    for n in nodes_m:
+                                        name, nh, estD = n
+                                        self.client_dst_msm[dstAddr][name]['PrvEstDelay'] = self.client_dst_msm[dstAddr][name]['estDelay']
+                                        self.client_dst_msm[dstAddr][name]['estDelay'] = estD
+
+                                self.log.info("PARMetricsModule received measurements for DST:%s from nodes: %s" % (dstAddr, nodes_m))
+                                pname, pnextop, pestDelay = nodes_m[0]
+                                #self.log.info("PARMetricsModule number of measurements stored for DST:%s for %s is %s" %(dstAddr, pname, self.client_dst_msm[dstAddr][pname]['estDelay']))
+                            if (time.monotonic() - self.client_dst_msm['time']) >= 15.0:
                                 ## Full algorithm here:
                                 ## Get current path
-                                curr_route, current_node = self.current_routes[Prefix(dstAddr)]
-                                lower_th_node = []
-                                good_nodes = []
-                                good_nodes_d = []
-                                for e_node in nodes:
-                                    n_name, n_nh, n_delay = e_node
-                                    if n_delay < (self.thresholds['gaming'] - 0.5):
-                                        lower_th_node.append((n_name, n_nh, n_delay))
+                                for dstAddr in self.clients:
+                                    curr_route, current_node = self.current_routes[Prefix(dstAddr)]
+                                    lower_th_node = []
+                                    good_nodes = []
+                                    good_nodes_d = []
+                                    best_route = {}
+                                    nodes = []
+                                    delay_l = []
 
-                                for e_node in nodes:
-                                    n_name, n_nh, n_delay = e_node
-                                    if n_name == current_node:
-                                        # Check if Measurement for current path/node
-                                        # is greater than threshold
-                                        if n_delay >= (self.thresholds['gaming'] - 0.99):
-                                            if len(lower_th_node) != 0:
-                                                for lth_node in lower_th_node:
-                                                    lt_name, lt_nh, lt_delay = lth_node
-                                                    diff = abs(self.thresholds['gaming'] - lt_delay)
-                                                    avg = (lt_delay + self.thresholds['gaming'])/2
-                                                    pct_diff = (diff/avg) * 100
-                                                    self.log.info("PARMetricsModule percentage difference between path via %s and threshold for DST:%s is %s" %(lt_name, dstAddr, pct_diff))
-                                                    if pct_diff >= 7:
-                                                        good_nodes.append((lt_name, lt_nh, lt_delay))
-                                                        good_nodes_d.append(lt_delay)
-                                                
-                                                if len(good_nodes_d) != 0:
-                                                    min_best = min(good_nodes_d)
-                                                    for g_node in good_nodes:
-                                                        g_name, g_nh, g_delay = g_node
-                                                        if g_delay == min_best:
-                                                            self.log.info("PARMetricsModule should update path for DST:%s to a better one" % dstAddr)
-                                                            #self.best_routes = self._fetch_route(n_name, n_nh)
-                                                            best_route = self._fetch_route_for_prefix(g_name, g_nh, dstAddr)
-                                                            if Prefix(dstAddr) in self.current_routes:
-                                                                self.current_routes[Prefix(dstAddr)] = best_route[Prefix(dstAddr)][0]
-                                                            else:
-                                                                self.log.info("PARMetricsModule NO_CURRENT_ROUTE for %s" %dstAddr)
-                                        
-                                            # Compare path with minimum delay against current path
-                                            # If there aren't paths that are 10% better than the current path
-                                            if len(best_route) == 0 :
-                                                # compare minimum delay with current path instead
-                                                min_d = min(delay_l)
-                                                if min_d != n_delay:
-                                                    diff = n_delay - min_d
-                                                    pct_diff = (diff/min_d) * 100
-                                                    self.log.info("PARMetricsModule percentage decrease in change between current path via %s and minimum best path for DST:%s is %s" %(current_node, dstAddr, pct_diff))
+                                    for e_node in self.client_dst_msm[dstAddr].keys():
+                                        estDelay = self.client_dst_msm[dstAddr][e_node]['estDelay']
+                                        PrvEstDelay = self.client_dst_msm[dstAddr][e_node]['PrvEstDelay']
+                                        nh = self.client_dst_msm[dstAddr][e_node]['nexthop']
+                                        delay_l.append(estDelay)
+                                        nodes.append((e_node, nh, estDelay, PrvEstDelay))
+                                        if (estDelay < (self.thresholds['gaming'])):
+                                            lower_th_node.append((e_node, nh, estDelay))
 
-                                                    if pct_diff >= 7:
-                                                        for b_node in nodes:
-                                                            b_name, b_nh, b_delay = b_node
-                                                            if b_delay == min_d:
-                                                                   
-                                                                self.log.info("PARMetricsModule percentage decrease in change between current path via %s and best path via %s for DST:%s is %s" %(current_node, b_name, dstAddr, pct_diff))
-                                                                self.log.info("PARMetricsModule should also update path for DST:%s to a better one here" % dstAddr)
-                                                                best_route = self._fetch_route_for_prefix(b_name, b_nh, dstAddr)
+                                    for e_node in self.client_dst_msm[dstAddr].keys():
+                                        estDelay = self.client_dst_msm[dstAddr][e_node]['estDelay']
+                                        prevDelay = self.client_dst_msm[dstAddr][e_node]['PrvEstDelay']
+                                        n_delay = estDelay
+                                        if e_node == current_node:
+                                            if n_delay >= (self.thresholds['gaming']):
+                                                if len(lower_th_node) != 0:
+                                                    for lth_node in lower_th_node:
+                                                        lt_name, lt_nh, lt_delay = lth_node
+                                                        diff = self.thresholds['gaming'] - lt_delay
+                                                        avg = (lt_delay + self.thresholds['gaming'])/2
+                                                        pct_diff = (diff/avg) * 100
+                                                        self.log.info("PARMetricsModule percentage difference between path via %s and threshold for DST:%s is %s." % (lt_name, dstAddr, pct_diff))
+
+                                                        if (pct_diff >= 4):
+                                                            good_nodes.append((lt_name, lt_nh, lt_delay))
+                                                            good_nodes_d.append(lt_delay)
+
+                                                    if len(good_nodes_d) != 0:
+                                                        min_best = min(good_nodes_d)
+                                                        for g_node in good_nodes:
+                                                            g_name, g_nh, g_delay = g_node
+                                                            if g_delay == min_best:
+                                                                self.log.info("PARMetricsModule should update path for DST:%s to a better one" % dstAddr)
+                                                                #self.best_routes = self._fetch_route(n_name, n_nh)
+                                                                best_route = self._fetch_route_for_prefix(g_name, g_nh, dstAddr)
                                                                 if Prefix(dstAddr) in self.current_routes:
                                                                     self.current_routes[Prefix(dstAddr)] = best_route[Prefix(dstAddr)][0]
                                                                 else:
-                                                                    self.log.info("PARMetricsModule NO_CURRENT_ROUTE for %s" %dstAddr)
+                                                                    self.log.info("PARMetricsModule NO_CURRENT_ROUTE for %s" % dstAddr)
+
+                                                if len(best_route) == 0:
+                                                    min_d = min(delay_l)
+                                                    # reset to zero
+                                                    pct_diff = 0
+                                                    if min_d != n_delay:
+                                                        diff = n_delay - min_d
+                                                        pct_diff = (diff/n_delay) * 100
+                                                        self.log.info("PARMetricsModule percentage decrease in change between current path via %s and minimum best path for DST:%s is %s" % (current_node, dstAddr, pct_diff))
+
+                                                        if pct_diff >= 4:
+                                                            for b_node in nodes:
+                                                                b_name, b_nh, b_delay, b_prvDelay = b_node
+                                                                if b_delay == min_d:
+                                                                    self.log.info("PARMetricsModule percentage decrease in change between current path via %s and best path via %s for DST:%s is %s" % (current_node, b_name, dstAddr, pct_diff))
+                                                                    self.log.info("PARMetricsModule should also update path for DST:%s to a better one here" % dstAddr)
+                                                                    best_route = self._fetch_route_for_prefix(b_name, b_nh, dstAddr)
+                                                                    if Prefix(dstAddr) in self.current_routes:
+                                                                        self.current_routes[Prefix(dstAddr)] = best_route[Prefix(dstAddr)][0]
+                                                                    else:
+                                                                        self.log.info("PARMetricsModule NO_CURRENT_ROUTE for %s" % dstAddr)
+                                            else:
+                                                ## The smoothed/estimated delay is below the threshold, it's increasing
+                                                if (n_delay - prevDelay) >= 2.0:
+                                                    self.log.info("PARMetricsModule, current path for %s via %s is below threshold but getting worse!!!" % (dstAddr, current_node))
+                                                    if len(lower_th_node) != 0:
+                                                        for lth_node in lower_th_node:
+                                                            lt_name, lt_nh, lt_delay = lth_node
+                                                            diff = self.thresholds['gaming'] - lt_delay
+                                                            avg = (lt_delay + self.thresholds['gaming'])/2
+                                                            pct_diff = (diff/avg) * 100
+                                                            self.log.info("PARMetricsModule percentage difference between path via %s and threshold for DST:%s is %s." % (lt_name, dstAddr, pct_diff))
+
+                                                            if (pct_diff >= 4):
+                                                                good_nodes.append((lt_name, lt_nh, lt_delay))
+                                                                good_nodes_d.append(lt_delay)
+
+                                                        if len(good_nodes_d) != 0:
+                                                            min_best = min(good_nodes_d)
+                                                            for g_node in good_nodes:
+                                                                g_name, g_nh, g_delay = g_node
+                                                                if (g_delay == min_best) and (g_name != current_node):
+                                                                    self.log.info("PARMetricsModule should update path for DST:%s to a better one" % dstAddr)
+                                                                    #self.best_routes = self._fetch_route(n_name, n_nh)
+                                                                    best_route = self._fetch_route_for_prefix(g_name, g_nh, dstAddr)
+                                                                    if Prefix(dstAddr) in self.current_routes:
+                                                                        self.current_routes[Prefix(dstAddr)] = best_route[Prefix(dstAddr)][0]
+                                                                    else:
+                                                                        self.log.info("PARMetricsModule NO_CURRENT_ROUTE for %s" % dstAddr)
                                         #else:
                                         #    best_route = {}
                                         #break
                                 # Update dataplane for DST
                                 #self.log.info("PARMetricsModule DISABLED _fetch_route function, show self.best_routes: %s" %self.best_routes)
-                                    
-                                if len(best_route) != 0:
-                                    self.command_queue.put(("par-update", {
-                                        "routes": best_route,
-                                        "type": self.name,
-                                    }))
-                                    self.log.info("PARMetricsModule RUN RECEIVED PERFOMANCE UPDATE for PREFIX %s AND NOTIFIED CONTROLLER TO UPDATE DATAPLANE WITH: %s" %(dstAddr,best_route))
-                                            
+
+                                    if len(best_route) != 0:
+                                        self.command_queue.put(("par-update", {
+                                            "routes": best_route,
+                                            "type": self.name,
+                                        }))
+                                        self.log.info("PARMetricsModule RUN RECEIVED PERFOMANCE UPDATE for PREFIX %s AND NOTIFIED CONTROLLER TO UPDATE DATAPLANE WITH: %s" % (dstAddr, best_route))
+                                self.client_dst_msm['time'] = time.monotonic()
                                 ###### 2023-03-06 Disabled this
                                 #min_d = min(delay_l)
                                 #max_d = max(delay_l)
@@ -369,6 +429,27 @@ class BasePARModule(Process):
                     self.current_routes[dest] = (route, exitnode)
         for dest, route in self.current_routes.items():
             self.log.info("PARModule will use %s via %s initially for %s" %(route,exitnode,dest))
+
+
+    def _evaluate_rtt_trend(self, actual_rtt, estimated_rtt):
+        if isinstance(actual_rtt, float) and isinstance(estimated_rtt, float):
+            diff = actual_rtt - estimated_rtt
+
+            if diff <= 0.5:
+                return "STABLE"
+
+            if diff > 1.0:
+                return "UP"
+
+        if isinstance(actual_rtt, list) and isinstance(estimated_rtt, list):
+            rtt_diff = [actual - estimated for actual, estimated in zip(actual_rtt, estimated_rtt)]
+
+            if all(diff > 1.0 for diff in rtt_diff):
+                return "UP"
+            elif all(diff <= 0.5 for diff in rtt_diff):
+                return "STABLE"
+            else:
+                return "UNSTABLE"
 
 
     @abstractmethod

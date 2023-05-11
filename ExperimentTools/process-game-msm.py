@@ -68,7 +68,11 @@ if __name__ == "__main__":
                 avgRTT = np.mean(rtts)
                 percentile = np.percentile(rtts, args.percentile)
                 duration = float(timestamp[-1]) - float(timestamp[0])
-                if duration > 299.4:
+                #if duration > 299.4:
+                #    accepted = True
+                #else:
+                #    accepted = False
+                if len(rtts) >= 600:
                     accepted = True
                 else:
                     accepted = False
