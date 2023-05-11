@@ -40,6 +40,7 @@ from utils import ipv4_addrs_in_subnet, ipv6_addrs_in_subnet
 class Peer(PolicyObject):
     def __init__(self, name, asn, address, control_queue,
             internal_command_queue,
+            #preference,
             preference=DEFAULT_LOCAL_PREF,
             default_import=ACCEPT,
             default_export=ACCEPT,
@@ -322,7 +323,7 @@ class Peer(PolicyObject):
 
         # record the routes we last exported so we can check for changes
         self.exported = full_routes
-
+        #self.log.info("PEER: Checking self.preference for %s is %s" %(self.name, self.preference))
         self.log.info("Finished exporting routes to peer %s", self.name)
 
     @abstractmethod

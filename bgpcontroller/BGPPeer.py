@@ -33,6 +33,7 @@ from RouteEntry import RouteEntry, DEFAULT_LOCAL_PREF, ORIGIN_EGP
 class BGPPeer(Peer):
     def __init__(self, name, asn, address, outgoing_queue, control_queue,
             internal_command_queue,
+            #preference,
             preference=DEFAULT_LOCAL_PREF,
             default_import=ACCEPT,
             default_export=ACCEPT,par=False):
@@ -126,6 +127,7 @@ class BGPPeer(Peer):
                 "origin": route.origin,
                 "aspath": route.as_path(),
                 "communities": route.communities(),
+                #"local-preference": self.preference,
             },
             "type": "advertise",
         }))
@@ -276,6 +278,11 @@ class BGPPeer(Peer):
         prefixes = announce["nlri"]
         nexthop = announce["nexthop"]
         preference = announce["attribute"].get("local-preference", self.preference)
+        #preference = int(self.preference)
+        self.log.info("dimeji_debug_bgppeer _process_announce_prefixes local preference for %s  is %s" % (self.name, preference))
+
+        #self.log.info("dimeji_debug_bgppeer _process_announce_prefixes self.preference for %s  is %s" % (self.name, self.preference))
+
         #self.log.info("DIMEJI_DEBUG_BGPPEER _process_announce_prefixes as_path is %s" % as_path)
         for pfx in prefixes:
             route = RouteEntry(origin, self.asn,

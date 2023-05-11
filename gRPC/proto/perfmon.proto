@@ -7,7 +7,8 @@ message ExitNode {
   string name = 1;
   string address = 2;
   float delay = 3;
-  float loss = 4;
+  float estDelay = 4;
+  float loss = 5;
 }
 
 // Performance message to PARMetricsModule containing
@@ -43,4 +44,16 @@ message DstRTT {
 // RTT measurements messages for a set destinations
 message DstRTTMsgs {
   repeated DstRTT dstrtt = 1;
+} 
+
+// RTT Measurements for each client
+message ClientRTT {
+  string address = 1;
+  float  ertt = 2;
+  float rtt = 3;
+}
+
+// RTT measurements messages for a set destinations
+message ClRTTMsgs {
+  repeated ClientRTT cl_rtt = 1;
 } 
